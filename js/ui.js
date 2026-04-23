@@ -1,26 +1,26 @@
 /**
- * Módulo de Interface (UI) Vitrine Pro
- * Gere a visualização, gráficos, modais, abas e filtros de data.
+ * Módulo de Interface (UI) - Vitrine Pro
+ * Responsável por gerir menus, abas, modais e renderização de componentes visuais.
  */
 
 const UI = {
-    chart: null,
+    chartInstance: null,
     activeTab: 'resumo',
     activeMonth: 'todos', // Define "Todos" como padrão inicial
     activeYear: new Date().getFullYear(),
     activeModalType: 'faturamentos',
 
     /**
-     * Inicializa os componentes da interface
+     * Inicializa os componentes básicos da interface
      */
     init() {
         this.renderYearFilter();
         this.renderMonthSelector();
-        console.log("UI Inicializada com sucesso.");
+        console.log("Interface UI Inicializada.");
     },
 
     /**
-     * Gera as opções do filtro de ano
+     * Gera as opções do seletor de ano (Ano atual e anteriores)
      */
     renderYearFilter() {
         const select = document.getElementById('year-filter');
@@ -35,6 +35,7 @@ const UI = {
             opt.textContent = i;
             select.appendChild(opt);
         }
+        select.value = this.activeYear;
     },
 
     /**
@@ -59,7 +60,7 @@ const UI = {
             return `
                 <button onclick="UI.selectMonth('${m.id}')" 
                         id="month-${m.id}"
-                        class="px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all duration-300 border
+                        class="px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all duration-300 border
                         ${isActive 
                             ? 'bg-[#00ff88] text-black shadow-lg shadow-[#00ff88]/20 border-[#00ff88]' 
                             : 'bg-white/5 text-slate-400 border-white/5 hover:bg-white/10'}">
@@ -70,34 +71,28 @@ const UI = {
     },
 
     /**
-     * Altera o mês selecionado e dispara atualização de dados
+     * Altera o mês ativo e solicita atualização dos dados ao App
      */
     selectMonth(monthId) {
         this.activeMonth = monthId;
         this.renderMonthSelector();
-        
-        // Sincroniza com a lógica do App se disponível
         if (window.App && typeof window.App.refreshData === 'function') {
             window.App.refreshData();
-        } else if (window.App && typeof window.App.refreshUI === 'function') {
-            window.App.refreshUI();
         }
     },
 
     /**
-     * Altera o ano e atualiza os dados
+     * Altera o ano ativo e solicita atualização
      */
     filterByYear(year) {
         this.activeYear = parseInt(year);
-        // Compatibilidade com diferentes versões do app.js
-        if (window.App) {
-            if (typeof window.App.refreshData === 'function') window.App.refreshData();
-            else if (typeof window.App.refreshUI === 'function') window.App.refreshUI();
+        if (window.App && typeof window.App.refreshData === 'function') {
+            window.App.refreshData();
         }
     },
 
     /**
-     * Alterna entre as abas principais (Resumo, Vendas, Custos, Lucros)
+     * Alterna entre as abas principais
      */
     switchTab(tab) {
         this.activeTab = tab;
@@ -107,7 +102,6 @@ const UI = {
         const activeBtn = document.getElementById(`btn-tab-${tab}`);
         if (activeBtn) activeBtn.classList.add('active');
 
-        // Alterna visibilidade das secções
         const sectionResumo = document.getElementById('section-resumo');
         const sectionListagem = document.getElementById('section-listagem');
 
@@ -120,15 +114,13 @@ const UI = {
             this.activeModalType = tab; 
         }
 
-        // Refresh dos dados
-        if (window.App) {
-            if (typeof window.App.refreshData === 'function') window.App.refreshData();
-            else if (typeof window.App.refreshUI === 'function') window.App.refreshUI();
+        if (window.App && typeof window.App.refreshData === 'function') {
+            window.App.refreshData();
         }
     },
 
     /**
-     * Renderiza a lista de itens (Vendas, Despesas ou Retiradas)
+     * Renderiza a lista de itens para as abas de Vendas, Custos ou Lucros
      */
     renderList(items) {
         const container = document.getElementById('items-list');
@@ -145,11 +137,11 @@ const UI = {
         }
 
         container.innerHTML = items.map(item => {
-            const date = new Date(item.data).toLocaleDateString('pt-PT');
+            const date = new Date(item.data + 'T12:00:00').toLocaleDateString('pt-BR');
             const valor = Number(item.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
             
             return `
-                <div class="glass p-5 rounded-2xl flex justify-between items-center group animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div class="glass p-5 rounded-2xl flex justify-between items-center group animate-in fade-in slide-in-from-bottom-2 duration-300 mb-3">
                     <div class="flex items-center gap-4">
                         <div class="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-white/5">
                             <i class="ph-bold ${this.getIconForType(item.type)} text-lg text-slate-400"></i>
@@ -184,7 +176,7 @@ const UI = {
     },
 
     /**
-     * Atualiza o gráfico de fluxo de caixa (Doughnut)
+     * Atualiza o gráfico de Doughnut
      */
     updateChart(f, d, r) {
         const ctx = document.getElementById('chartResumo');
@@ -200,11 +192,11 @@ const UI = {
             }]
         };
 
-        if (this.chart) {
-            this.chart.data = data;
-            this.chart.update();
+        if (this.chartInstance) {
+            this.chartInstance.data = data;
+            this.chartInstance.update();
         } else {
-            this.chart = new Chart(ctx, {
+            this.chartInstance = new Chart(ctx, {
                 type: 'doughnut',
                 data: data,
                 options: {
@@ -234,7 +226,7 @@ const UI = {
         document.getElementById('edit-id').value = '';
 
         if (editData) {
-            document.getElementById('modal-title').innerText = "Editar Lançamento";
+            document.getElementById('modal-title').innerText = "Editar Registo";
             document.getElementById('edit-id').value = editData.id;
             document.getElementById('inp-desc').value = editData.descricao;
             document.getElementById('inp-valor').value = editData.valor;
@@ -264,13 +256,13 @@ const UI = {
         };
 
         Object.values(btns).forEach(b => {
-            if (b) b.className = "flex-1 py-3 rounded-xl text-[9px] font-black transition-all text-slate-500";
+            if (b) b.className = "flex-1 py-3 rounded-xl text-[9px] font-black transition-all text-slate-500 bg-white/5";
         });
 
         const activeColors = {
-            faturamentos: "bg-green-500/20 text-green-400 border border-green-500/30",
-            despesas: "bg-red-500/20 text-red-400 border border-red-500/30",
-            retiradas: "bg-purple-500/20 text-purple-400 border border-purple-500/30"
+            faturamentos: "bg-[#00ff88] text-black border border-[#00ff88]/50 shadow-lg shadow-[#00ff88]/10",
+            despesas: "bg-red-500 text-white border border-red-500/50 shadow-lg shadow-red-500/10",
+            retiradas: "bg-purple-500 text-white border border-purple-500/50 shadow-lg shadow-purple-500/10"
         };
 
         if (btns[type]) {
@@ -291,21 +283,11 @@ const UI = {
         t.innerText = msg;
         t.style.display = 'block';
         setTimeout(() => { t.style.display = 'none'; }, 3000);
-    },
-
-    exportData() {
-        if (window.App && typeof window.App.exportToCSV === 'function') {
-            window.App.exportToCSV();
-        } else {
-            this.showToast("Exportação em processamento...");
-        }
     }
 };
 
-// Vincula ao objeto window para acesso global
 window.UI = UI;
 
-// Inicializa a interface quando o DOM estiver pronto
 document.addEventListener('DOMContentLoaded', () => {
     UI.init();
 });
