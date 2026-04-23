@@ -1,18 +1,27 @@
-
 const Auth = {
     async login(email, pass) {
+        if (!email || !pass) {
+            UI.showToast("Preencha todos os campos");
+            return;
+        }
         try {
             await firebase.auth().signInWithEmailAndPassword(email, pass);
         } catch (error) {
-            UI.showToast("Erro: " + error.message);
+            console.error(error);
+            UI.showToast("E-mail ou senha incorretos");
         }
     },
 
     async signup(email, pass) {
+        if (!email || !pass) {
+            UI.showToast("Use um e-mail válido");
+            return;
+        }
         try {
             await firebase.auth().createUserWithEmailAndPassword(email, pass);
+            UI.showToast("Conta criada com sucesso!");
         } catch (error) {
-            UI.showToast("Erro ao criar conta.");
+            UI.showToast("Erro ao criar conta");
         }
     },
 
@@ -21,7 +30,7 @@ const Auth = {
     }
 };
 
-// Vincula os botões da tela de login
+// Vinculação dos eventos de clique
 document.getElementById('btn-login').onclick = () => {
     const e = document.getElementById('login-email').value;
     const p = document.getElementById('login-pass').value;
