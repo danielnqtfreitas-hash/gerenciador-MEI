@@ -8,13 +8,7 @@ const firebaseConfig = {
 };
 
 firebase.initializeApp(firebaseConfig);
-
-// --- LISTA DE E-MAILS LIBERADOS (Seus Clientes) ---
-const CLIENTES_AUTORIZADOS = [
-    "seu-email@gmail.com",
-    "cliente1@gmail.com",
-    "amigo-que-pagou@gmail.com"
-];
+const db = firebase.firestore();
 
 const App = {
     user: null,
@@ -23,15 +17,24 @@ const App = {
     init() {
         firebase.auth().onAuthStateChanged(async (user) => {
             if (user) {
-                // VERIFICAÇÃO DE ACESSO COMERCIAL
-                if (CLIENTES_AUTORIZADOS.includes(user.email)) {
-                    this.user = user;
-                    this.startDataListeners();
-                    document.getElementById('auth-screen').style.display = 'none';
-                    document.getElementById('app-content').style.display = 'block';
-                } else {
-                    // SE NÃO ESTIVER NA LISTA, DESLOGA NA HORA
-                    UI.showToast("Acesso não autorizado. Contate o administrador.");
+                try {
+                    // --- VALIDAÇÃO DE SEGURANÇA NO BANCO DE DADOS ---
+                    const docRef = db.collection("usuarios_permitidos").doc(user.email.toLowerCase());
+                    const docSnap = await docRef.get();
+
+                    if (docSnap.exists) {
+                        // Cliente autorizado!
+                        this.user = user;
+                        this.startDataListeners();
+                        document.getElementById('auth-screen').style.display = 'none';
+                        document.getElementById('app-content').style.display = 'block';
+                    } else {
+                        // Não está na lista do Firestore
+                        UI.showToast("E-mail não autorizado para esta licença.");
+                        await firebase.auth().signOut();
+                    }
+                } catch (error) {
+                    console.error("Erro na validação:", error);
                     await firebase.auth().signOut();
                 }
             } else {
