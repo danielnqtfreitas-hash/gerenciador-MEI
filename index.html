@@ -10,11 +10,9 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#020617">
     
-    <title>Vitrine Pro - Financeiro</title>
+    <title>Vitrine Pro - Gestão Elite</title>
     
-    <link rel="manifest" href="manifest.json">
     <link rel="stylesheet" href="css/style.css">
-    
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -24,154 +22,302 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+
+    <style>
+        :root {
+            --brand-green: #00ff88;
+            --bg-dark: #020617;
+            --card-glass: rgba(15, 23, 42, 0.7);
+        }
+        
+        body {
+            background-color: var(--bg-dark);
+            color: #f1f5f9;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .glass {
+            background: var(--card-glass);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .btn-glow:active {
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
+            transform: scale(0.98);
+        }
+
+        input {
+            background: rgba(30, 41, 59, 0.5) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            transition: all 0.3s ease;
+        }
+
+        input:focus {
+            border-color: var(--brand-green) !important;
+            background: rgba(30, 41, 59, 0.8) !important;
+            box-shadow: 0 0 0 4px rgba(0, 255, 136, 0.1);
+        }
+
+        .tab-btn {
+            position: relative;
+            transition: color 0.3s ease;
+        }
+
+        .tab-btn.active {
+            color: var(--brand-green);
+        }
+
+        .tab-btn.active::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 25%;
+            width: 50%;
+            height: 3px;
+            background: var(--brand-green);
+            border-radius: 10px;
+            box-shadow: 0 0 10px var(--brand-green);
+        }
+
+        .mei-progress-container {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 999px;
+            height: 6px;
+            overflow: hidden;
+        }
+
+        .mei-progress-bar {
+            background: linear-gradient(90deg, #00ff88, #00bd65);
+            height: 100%;
+            border-radius: 999px;
+            transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Toast premium */
+        .toast {
+            position: fixed;
+            top: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 1rem 2rem;
+            border-radius: 1rem;
+            background: #1e293b;
+            border: 1px solid var(--brand-green);
+            color: white;
+            font-weight: 700;
+            z-index: 9999;
+            display: none;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+        }
+    </style>
 </head>
 <body class="pb-32">
 
     <div id="toast" class="toast"></div>
 
-    <!-- TELA DE LOGIN (GOOGLE) -->
+    <!-- TELA DE LOGIN PREMIUM -->
     <div id="auth-screen" class="fixed inset-0 bg-[#020617] z-[1000] flex items-center justify-center p-6">
-        <div class="card p-8 w-full max-w-md border-neon/20 shadow-2xl space-y-8 text-center">
-            <div>
-                <h1 class="text-3xl font-black italic text-[#00ff88]">VITRINE <span class="text-white">PRO</span></h1>
-                <p class="text-slate-500 text-[10px] font-black uppercase mt-2 tracking-widest">Gestão Financeira Inteligente</p>
+        <div class="absolute inset-0 overflow-hidden pointer-events-none">
+            <div class="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-[#00ff88]/5 blur-[120px] rounded-full"></div>
+            <div class="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-500/5 blur-[120px] rounded-full"></div>
+        </div>
+
+        <div class="glass p-10 w-full max-w-md rounded-[2.5rem] shadow-2xl space-y-8 text-center relative z-10">
+            <div class="space-y-2">
+                <div class="w-16 h-16 bg-[#00ff88]/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-[#00ff88]/20">
+                    <i class="ph-fill ph-chart-line-up text-3xl text-[#00ff88]"></i>
+                </div>
+                <h1 class="text-4xl font-black italic tracking-tighter text-[#00ff88]">VITRINE <span class="text-white">PRO</span></h1>
+                <p class="text-slate-400 text-xs font-medium uppercase tracking-[0.2em]">Painel de Controle Financeiro</p>
             </div>
 
-            <div class="space-y-4">
-                <button id="btn-login" class="flex items-center justify-center gap-3 w-full py-4 bg-white text-black font-bold rounded-2xl transition-all active:scale-95 shadow-xl shadow-white/5">
-                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-5">
-                    ENTRAR COM GOOGLE
+            <div class="space-y-4 text-left">
+                <div class="space-y-1.5">
+                    <label class="text-[10px] font-bold text-slate-500 ml-4 uppercase tracking-widest">Identificação</label>
+                    <input type="email" id="login-email" placeholder="E-mail de acesso" class="w-full py-4 px-6 rounded-2xl text-sm focus:outline-none">
+                </div>
+                <div class="space-y-1.5">
+                    <label class="text-[10px] font-bold text-slate-500 ml-4 uppercase tracking-widest">Código de Segurança</label>
+                    <input type="password" id="login-pass" placeholder="••••••••" class="w-full py-4 px-6 rounded-2xl text-sm focus:outline-none">
+                </div>
+                <button id="btn-login" class="btn-glow w-full py-4 bg-[#00ff88] text-black font-black rounded-2xl mt-4 transition-all hover:brightness-110 shadow-lg shadow-[#00ff88]/10">
+                    ACESSAR PLATAFORMA
                 </button>
-                <p class="text-[9px] text-slate-600 font-black uppercase italic">Acesso rápido e seguro via Google Auth</p>
+                <div class="flex items-center justify-center gap-2 pt-4 opacity-40">
+                    <i class="ph ph-shield-check"></i>
+                    <p class="text-[9px] font-bold uppercase tracking-tighter">Conexão Criptografada ponta-a-ponta</p>
+                </div>
             </div>
         </div>
     </div>
 
     <!-- CONTEÚDO DO APP -->
     <div id="app-content" style="display: none;">
-        <header class="bg-[#020617]/95 backdrop-blur-lg sticky top-0 z-50 border-b border-slate-800 pt-safe">
-            <div class="p-4 flex justify-between items-center">
-                <h1 class="text-xl font-black italic text-[#00ff88]">VITRINE <span class="text-white">PRO</span></h1>
-                <div class="flex gap-2">
-                    <button onclick="UI.exportData()" class="bg-slate-800 p-2 rounded-lg text-slate-300"><i class="ph-bold ph-share-network"></i></button>
-                    <select id="year-filter" onchange="UI.filterByYear(this.value)" class="!w-auto !py-1 !px-2 !text-[10px] font-black"></select>
-                    <button onclick="Auth.logout()" class="bg-red-500/10 p-2 rounded-lg text-red-500"><i class="ph-bold ph-sign-out"></i></button>
+        <!-- Header minimalista e flutuante -->
+        <header class="glass sticky top-0 z-50 border-b border-white/5 pt-safe">
+            <div class="p-5 flex justify-between items-center">
+                <div class="flex flex-col">
+                    <h1 class="text-lg font-black italic text-[#00ff88]">VITRINE <span class="text-white">PRO</span></h1>
+                    <span class="text-[8px] text-slate-500 font-bold uppercase">Dashboard Elite</span>
                 </div>
-            </div>
-            <div class="flex overflow-x-auto gap-2 px-4 pb-3 no-scrollbar" id="month-selector"></div>
-            <div class="flex">
-                <button onclick="UI.switchTab('resumo')" id="btn-tab-resumo" class="tab-btn active">Resumo</button>
-                <button onclick="UI.switchTab('faturamentos')" id="btn-tab-faturamentos" class="tab-btn">Vendas</button>
-                <button onclick="UI.switchTab('despesas')" id="btn-tab-despesas" class="tab-btn">Gastos</button>
-                <button onclick="UI.switchTab('retiradas')" id="btn-tab-retiradas" class="tab-btn">Lucro</button>
-            </div>
-        </header>
-
-        <main class="p-4 max-w-2xl mx-auto space-y-6">
-            <div id="section-resumo" class="space-y-6">
-                <!-- CARD PRINCIPAL -->
-                <div class="card p-6 bg-gradient-to-br from-slate-900 to-black border-[#00ff88]/10 shadow-2xl">
-                    <div class="flex justify-between items-start mb-1">
-                        <p class="text-[10px] text-slate-500 font-black uppercase">Saldo Real Disponível</p>
-                        <i class="ph-fill ph-wallet text-[#00ff88]/40"></i>
-                    </div>
-                    <h2 id="saldo-disponivel" class="text-4xl font-black italic mb-6 tracking-tight text-white">R$ 0,00</h2>
-                    
-                    <!-- MONITOR MEI -->
-                    <div class="space-y-3 pt-5 border-t border-slate-800">
-                        <div class="flex justify-between items-end">
-                            <div>
-                                <p class="text-[9px] text-slate-400 font-black uppercase">Faturamento Anual (MEI)</p>
-                                <p id="mei-total-val" class="text-sm font-black text-[#00ff88]">R$ 0,00</p>
-                            </div>
-                            <p id="mei-percent" class="text-[9px] font-black text-slate-500">0% do limite</p>
-                        </div>
-                        <div class="mei-progress">
-                            <div id="mei-bar" class="mei-bar" style="width: 0%"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-3 gap-3">
-                    <div class="card p-3 border-none bg-slate-900/50 text-center">
-                        <p class="text-[8px] text-slate-500 font-black uppercase mb-1">Vendas</p>
-                        <p id="total-f" class="text-xs font-black text-green-400">R$ 0,00</p>
-                    </div>
-                    <div class="card p-3 border-none bg-slate-900/50 text-center">
-                        <p class="text-[8px] text-slate-500 font-black uppercase mb-1">Gastos</p>
-                        <p id="total-d" class="text-xs font-black text-red-400">R$ 0,00</p>
-                    </div>
-                    <div class="card p-3 border-none bg-slate-900/50 text-center">
-                        <p class="text-[8px] text-slate-500 font-black uppercase mb-1">Lucro</p>
-                        <p id="total-r" class="text-xs font-black text-purple-400">R$ 0,00</p>
-                    </div>
-                </div>
-                
-                <div class="card p-4 h-[250px] bg-slate-900/30 border-slate-800/50">
-                    <canvas id="chartResumo"></canvas>
+                <div class="flex gap-3">
+                    <button onclick="UI.exportData()" class="bg-white/5 p-2.5 rounded-xl text-slate-300 border border-white/5"><i class="ph-bold ph-arrow-square-out"></i></button>
+                    <select id="year-filter" onchange="UI.filterByYear(this.value)" class="!bg-white/5 !border-white/5 !w-auto !py-1 !px-3 !text-[10px] font-black rounded-xl"></select>
+                    <button onclick="Auth.logout()" class="bg-red-500/10 p-2.5 rounded-xl text-red-500 border border-red-500/10"><i class="ph-bold ph-power"></i></button>
                 </div>
             </div>
             
-            <div id="section-listagem" class="hidden space-y-3">
-                <div id="items-list"></div>
+            <div class="flex overflow-x-auto gap-3 px-5 pb-4 no-scrollbar" id="month-selector"></div>
+            
+            <nav class="flex px-5 border-t border-white/5">
+                <button onclick="UI.switchTab('resumo')" id="btn-tab-resumo" class="flex-1 py-4 text-[10px] font-black uppercase tracking-widest tab-btn active">Visão Geral</button>
+                <button onclick="UI.switchTab('faturamentos')" id="btn-tab-faturamentos" class="flex-1 py-4 text-[10px] font-black uppercase tracking-widest tab-btn">Vendas</button>
+                <button onclick="UI.switchTab('despesas')" id="btn-tab-despesas" class="flex-1 py-4 text-[10px] font-black uppercase tracking-widest tab-btn">Custos</button>
+                <button onclick="UI.switchTab('retiradas')" id="btn-tab-retiradas" class="flex-1 py-4 text-[10px] font-black uppercase tracking-widest tab-btn">Lucros</button>
+            </nav>
+        </header>
+
+        <main class="p-5 max-w-2xl mx-auto space-y-8 mt-4">
+            <div id="section-resumo" class="space-y-8">
+                <!-- CARD DE SALDO - DESIGN CONCEITO -->
+                <div class="glass p-8 rounded-[2.5rem] relative overflow-hidden">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-[#00ff88]/10 blur-[60px] rounded-full translate-x-1/2 -translate-y-1/2"></div>
+                    
+                    <div class="flex justify-between items-center mb-4 relative z-10">
+                        <div class="space-y-1">
+                            <p class="text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em]">Liquidez em Conta</p>
+                            <h2 id="saldo-disponivel" class="text-4xl font-black italic text-white tracking-tighter">R$ 0,00</h2>
+                        </div>
+                        <div class="w-14 h-14 bg-white/5 rounded-2xl flex items-center justify-center border border-white/10">
+                            <i class="ph-fill ph-bank text-2xl text-[#00ff88]"></i>
+                        </div>
+                    </div>
+                    
+                    <!-- MONITOR MEI REESTILIZADO -->
+                    <div class="mt-8 pt-6 border-t border-white/5 relative z-10">
+                        <div class="flex justify-between items-center mb-3">
+                            <span class="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Limite MEI (Anual)</span>
+                            <span id="mei-percent" class="text-[10px] font-black text-[#00ff88]">0%</span>
+                        </div>
+                        <div class="mei-progress-container">
+                            <div id="mei-bar" class="mei-progress-bar" style="width: 0%"></div>
+                        </div>
+                        <div class="flex justify-between mt-2">
+                            <p id="mei-total-val" class="text-[11px] font-black text-slate-200">R$ 0,00</p>
+                            <p class="text-[9px] font-bold text-slate-600">Limite R$ 81k</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CARDS DE METRICAS GRID -->
+                <div class="grid grid-cols-3 gap-4">
+                    <div class="glass p-4 rounded-2xl border-l-4 border-l-green-500">
+                        <p class="text-[8px] text-slate-500 font-bold uppercase mb-2">Entradas</p>
+                        <p id="total-f" class="text-xs font-black text-white">R$ 0,00</p>
+                    </div>
+                    <div class="glass p-4 rounded-2xl border-l-4 border-l-red-500">
+                        <p class="text-[8px] text-slate-500 font-bold uppercase mb-2">Despesas</p>
+                        <p id="total-d" class="text-xs font-black text-white">R$ 0,00</p>
+                    </div>
+                    <div class="glass p-4 rounded-2xl border-l-4 border-l-purple-500">
+                        <p class="text-[8px] text-slate-500 font-bold uppercase mb-2">Retiradas</p>
+                        <p id="total-r" class="text-xs font-black text-white">R$ 0,00</p>
+                    </div>
+                </div>
+                
+                <!-- GRÁFICO -->
+                <div class="glass p-6 rounded-[2rem]">
+                    <div class="flex justify-between items-center mb-6">
+                        <h4 class="text-[10px] font-black uppercase text-slate-400">Fluxo de Caixa Mensal</h4>
+                        <i class="ph ph-dots-three-outline font-bold text-slate-600"></i>
+                    </div>
+                    <div class="h-[260px]">
+                        <canvas id="chartResumo"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="section-listagem" class="hidden space-y-4">
+                <div id="items-list" class="space-y-3"></div>
             </div>
         </main>
 
-        <button onclick="UI.openModal()" class="floating-add"><i class="ph-bold ph-plus"></i></button>
+        <!-- Botão Flutuante Estilizado -->
+        <button onclick="UI.openModal()" class="fixed bottom-8 right-8 w-16 h-16 bg-[#00ff88] text-black rounded-2xl shadow-2xl shadow-[#00ff88]/20 flex items-center justify-center text-2xl transition-all active:scale-90 z-[60]">
+            <i class="ph-bold ph-plus"></i>
+        </button>
     </div>
 
-    <!-- MODAL FORM -->
-    <div id="modal-entry" class="fixed inset-0 bg-black/95 z-[100] hidden flex items-end justify-center p-4 backdrop-blur-sm">
-        <div class="bg-slate-900 w-full max-w-md rounded-[2.5rem] p-6 space-y-5 border border-slate-800 mb-2 shadow-2xl">
+    <!-- MODAL PREMIUM -->
+    <div id="modal-entry" class="fixed inset-0 bg-black/60 z-[100] hidden flex items-end sm:items-center justify-center p-4 backdrop-blur-xl">
+        <div class="bg-[#0f172a] w-full max-w-lg rounded-[2.5rem] p-8 space-y-6 border border-white/10 shadow-2xl relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#00ff88] to-transparent opacity-50"></div>
+            
             <div class="flex justify-between items-center">
-                <h3 id="modal-title" class="font-black uppercase italic text-slate-400 tracking-widest">Novo Registro</h3>
-                <button onclick="UI.closeModal()" class="p-2"><i class="ph-bold ph-x text-2xl text-slate-500"></i></button>
+                <h3 id="modal-title" class="text-sm font-black uppercase italic text-[#00ff88] tracking-widest">Lançar Operação</h3>
+                <button onclick="UI.closeModal()" class="w-10 h-10 bg-white/5 rounded-full flex items-center justify-center"><i class="ph-bold ph-x text-slate-400"></i></button>
             </div>
-            <form id="entry-form" class="space-y-4">
+
+            <form id="entry-form" class="space-y-6">
                 <input type="hidden" id="edit-id">
-                <div id="type-selector-container" class="flex p-1 bg-slate-800 rounded-xl">
-                    <button type="button" onclick="UI.setEntryType('faturamentos')" id="btn-type-f" class="flex-1 py-2 rounded-lg text-[9px] font-black">VENDA</button>
-                    <button type="button" onclick="UI.setEntryType('despesas')" id="btn-type-d" class="flex-1 py-2 rounded-lg text-[9px] font-black">GASTO</button>
-                    <button type="button" onclick="UI.setEntryType('retiradas')" id="btn-type-r" class="flex-1 py-2 rounded-lg text-[9px] font-black">LUCRO</button>
+                
+                <div id="type-selector-container" class="flex p-1.5 bg-slate-950 rounded-2xl border border-white/5">
+                    <button type="button" onclick="UI.setEntryType('faturamentos')" id="btn-type-f" class="flex-1 py-3 rounded-xl text-[9px] font-black transition-all">FATURAMENTO</button>
+                    <button type="button" onclick="UI.setEntryType('despesas')" id="btn-type-d" class="flex-1 py-3 rounded-xl text-[9px] font-black transition-all">DESPESA</button>
+                    <button type="button" onclick="UI.setEntryType('retiradas')" id="btn-type-r" class="flex-1 py-3 rounded-xl text-[9px] font-black transition-all">RETIRADA</button>
                 </div>
-                <div class="space-y-1">
-                    <p class="text-[9px] font-black text-slate-500 ml-2 uppercase">Identificação</p>
-                    <input type="text" id="inp-desc" placeholder="Ex: Venda Web, Aluguel..." required>
+
+                <div class="space-y-2">
+                    <label class="text-[10px] font-bold text-slate-500 ml-4 uppercase">Descrição do Item</label>
+                    <input type="text" id="inp-desc" placeholder="Ex: Consultoria Técnica" class="w-full py-4 px-6 rounded-2xl text-sm focus:outline-none" required>
                 </div>
-                <div class="grid grid-cols-2 gap-3">
-                    <div class="space-y-1">
-                        <p class="text-[9px] font-black text-slate-500 ml-2 uppercase">Valor (R$)</p>
-                        <input type="number" id="inp-valor" step="0.01" placeholder="0,00" required>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-2">
+                        <label class="text-[10px] font-bold text-slate-500 ml-4 uppercase">Montante (R$)</label>
+                        <input type="number" id="inp-valor" step="0.01" placeholder="0,00" class="w-full py-4 px-6 rounded-2xl text-sm focus:outline-none" required>
                     </div>
-                    <div class="space-y-1">
-                        <p class="text-[9px] font-black text-slate-500 ml-2 uppercase">Data</p>
-                        <input type="date" id="inp-data" required>
+                    <div class="space-y-2">
+                        <label class="text-[10px] font-bold text-slate-500 ml-4 uppercase">Data</label>
+                        <input type="date" id="inp-data" class="w-full py-4 px-6 rounded-2xl text-sm focus:outline-none" required>
                     </div>
                 </div>
-                <label class="flex items-center justify-between p-4 bg-slate-800 border-2 border-dashed border-slate-700 rounded-2xl cursor-pointer">
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-full bg-[#00ff88]/10 flex items-center justify-center">
-                            <i class="ph-bold ph-camera text-xl text-[#00ff88]"></i>
+
+                <!-- Upload de Comprovante Estilizado -->
+                <label class="flex items-center justify-between p-5 bg-slate-950 border border-white/5 rounded-2xl cursor-pointer group">
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 rounded-xl bg-[#00ff88]/5 flex items-center justify-center border border-[#00ff88]/10 group-hover:bg-[#00ff88]/10 transition-colors">
+                            <i class="ph-bold ph-image text-xl text-[#00ff88]"></i>
                         </div>
-                        <span id="file-status" class="text-[10px] font-black text-slate-400 uppercase">Comprovativo</span>
+                        <div class="flex flex-col">
+                            <span id="file-status" class="text-[10px] font-black text-slate-400 uppercase">Documento Fiscal</span>
+                            <span class="text-[8px] text-slate-600">JPG, PNG até 5MB</span>
+                        </div>
                     </div>
-                    <img id="preview-img" src="" class="w-10 h-10 rounded-lg object-cover border border-[#00ff88] hidden">
+                    <img id="preview-img" src="" class="w-12 h-12 rounded-xl object-cover border border-[#00ff88] hidden">
                     <input type="file" id="inp-file" class="hidden" accept="image/*" onchange="UI.processImage(this)">
                 </label>
-                <button type="submit" id="btn-save" class="btn-primary w-full py-4 font-black">SALVAR</button>
+
+                <button type="submit" id="btn-save" class="btn-glow w-full py-5 bg-[#00ff88] text-black font-black rounded-2xl shadow-xl shadow-[#00ff88]/10">
+                    CONFIRMAR LANÇAMENTO
+                </button>
             </form>
         </div>
     </div>
 
-    <!-- VIEWER IMAGEM -->
-    <div id="image-viewer" class="fixed inset-0 bg-black/98 z-[200] hidden flex-col items-center justify-center p-4">
-        <button onclick="UI.closeViewer()" class="absolute top-10 left-6 text-white text-sm font-black uppercase flex items-center gap-2">
-            <i class="ph-bold ph-caret-left"></i> Voltar
+    <!-- VIEWER IMAGEM PREMIUM -->
+    <div id="image-viewer" class="fixed inset-0 bg-black/98 z-[200] hidden flex-col items-center justify-center p-6 backdrop-blur-3xl">
+        <button onclick="UI.closeViewer()" class="absolute top-12 left-8 text-white text-xs font-black uppercase flex items-center gap-3 bg-white/10 px-4 py-2 rounded-full border border-white/10">
+            <i class="ph-bold ph-arrow-left"></i> Voltar
         </button>
-        <img id="view-full-img" src="" class="max-w-full max-h-[80vh] rounded-xl shadow-2xl">
+        <div class="relative w-full max-w-3xl">
+            <img id="view-full-img" src="" class="w-full h-auto rounded-3xl shadow-2xl border border-white/5">
+        </div>
     </div>
 
-    <!-- SCRIPTS -->
     <script src="js/ui.js"></script>
     <script src="js/database.js"></script>
     <script src="js/auth.js"></script>
