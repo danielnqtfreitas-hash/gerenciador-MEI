@@ -1,31 +1,179 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <!-- ... Seus metas do PWA e links do Tailwind/Phosphor ... -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Vitrine Pro">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#020617">
+    
+    <title>Vitrine Pro - Financeiro</title>
+    
     <link rel="manifest" href="manifest.json">
     <link rel="stylesheet" href="css/style.css">
     
-    <!-- Firebase SDKs (Compat mode) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="pb-32">
-    <!-- Tela de Login (conforme o exemplo anterior) -->
-    <div id="auth-screen"> ... </div>
 
-    <!-- App Principal (seu código original de header e main) -->
-    <div id="app-content" style="display:none">
-       <header> ... </header>
-       <main> ... </main>
+    <div id="toast" class="toast"></div>
+
+    <!-- TELA DE LOGIN -->
+    <div id="auth-screen" class="fixed inset-0 bg-[#020617] z-[1000] flex items-center justify-center p-6">
+        <div class="card p-8 w-full max-w-md border-neon/20 shadow-2xl space-y-6">
+            <div class="text-center">
+                <h1 class="text-3xl font-black italic text-[#00ff88]">VITRINE <span class="text-white">PRO</span></h1>
+                <p class="text-slate-500 text-[10px] font-black uppercase mt-2">Acesso Comercial MEI</p>
+            </div>
+            <div class="space-y-4">
+                <input type="email" id="login-email" placeholder="E-mail">
+                <input type="password" id="login-pass" placeholder="Senha">
+                <button id="btn-login" class="btn-primary w-full py-4 text-sm">ENTRAR NO PAINEL</button>
+                <p class="text-[9px] text-center text-slate-600 uppercase font-black cursor-pointer" onclick="Auth.signup(document.getElementById('login-email').value, document.getElementById('login-pass').value)">Criar acesso para novo amigo</p>
+            </div>
+        </div>
     </div>
 
-    <!-- Scripts como Módulos -->
-    <script src="js/auth.js"></script>
-    <script src="js/database.js"></script>
+    <!-- CONTEÚDO DO APP (Inicia oculto) -->
+    <div id="app-content" style="display: none;">
+        <header class="bg-[#020617]/95 backdrop-blur-lg sticky top-0 z-50 border-b border-slate-800 pt-safe">
+            <div class="p-4 flex justify-between items-center">
+                <h1 class="text-xl font-black italic text-[#00ff88]">VITRINE <span class="text-white">PRO</span></h1>
+                <div class="flex gap-2">
+                    <button onclick="UI.exportData()" class="bg-slate-800 p-2 rounded-lg text-slate-300"><i class="ph-bold ph-share-network"></i></button>
+                    <select id="year-filter" onchange="UI.filterByYear(this.value)" class="!w-auto !py-1 !px-2 !text-[10px] font-black"></select>
+                    <button onclick="Auth.logout()" class="bg-red-500/10 p-2 rounded-lg text-red-500"><i class="ph-bold ph-sign-out"></i></button>
+                </div>
+            </div>
+            <div class="flex overflow-x-auto gap-2 px-4 pb-3 no-scrollbar" id="month-selector"></div>
+            <div class="flex">
+                <button onclick="UI.switchTab('resumo')" id="btn-tab-resumo" class="tab-btn active">Resumo</button>
+                <button onclick="UI.switchTab('faturamentos')" id="btn-tab-faturamentos" class="tab-btn">Vendas</button>
+                <button onclick="UI.switchTab('despesas')" id="btn-tab-despesas" class="tab-btn">Gastos</button>
+                <button onclick="UI.switchTab('retiradas')" id="btn-tab-retiradas" class="tab-btn">Lucro</button>
+            </div>
+        </header>
+
+        <main class="p-4 max-w-2xl mx-auto space-y-6">
+            <div id="section-resumo" class="space-y-6">
+                <!-- CARD PRINCIPAL -->
+                <div class="card p-6 bg-gradient-to-br from-slate-900 to-black border-[#00ff88]/10 shadow-2xl">
+                    <div class="flex justify-between items-start mb-1">
+                        <p class="text-[10px] text-slate-500 font-black uppercase">Saldo Real Disponível</p>
+                        <i class="ph-fill ph-wallet text-[#00ff88]/40"></i>
+                    </div>
+                    <h2 id="saldo-disponivel" class="text-4xl font-black italic mb-6 tracking-tight text-white">R$ 0,00</h2>
+                    
+                    <!-- MONITOR MEI -->
+                    <div class="space-y-3 pt-5 border-t border-slate-800">
+                        <div class="flex justify-between items-end">
+                            <div>
+                                <p class="text-[9px] text-slate-400 font-black uppercase">Faturamento Anual (MEI)</p>
+                                <p id="mei-total-val" class="text-sm font-black text-[#00ff88]">R$ 0,00</p>
+                            </div>
+                            <p id="mei-percent" class="text-[9px] font-black text-slate-500">0% do limite</p>
+                        </div>
+                        <div class="mei-progress">
+                            <div id="mei-bar" class="mei-bar" style="width: 0%"></div>
+                        </div>
+                        <p class="text-[8px] text-slate-600 font-bold italic">*Limite anual MEI 2026: R$ 81.000,00</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-3">
+                    <div class="card p-3 border-none bg-slate-900/50">
+                        <p class="text-[8px] text-slate-500 font-black uppercase mb-1" id="label-f">Vendas</p>
+                        <p id="total-f" class="text-xs font-black text-green-400">R$ 0,00</p>
+                    </div>
+                    <div class="card p-3 border-none bg-slate-900/50">
+                        <p class="text-[8px] text-slate-500 font-black uppercase mb-1" id="label-d">Gastos</p>
+                        <p id="total-d" class="text-xs font-black text-red-400">R$ 0,00</p>
+                    </div>
+                    <div class="card p-3 border-none bg-slate-900/50">
+                        <p class="text-[8px] text-slate-500 font-black uppercase mb-1" id="label-r">Lucro</p>
+                        <p id="total-r" class="text-xs font-black text-purple-400">R$ 0,00</p>
+                    </div>
+                </div>
+                
+                <div class="card p-4 h-[250px] bg-slate-900/30 border-slate-800/50">
+                    <canvas id="chartResumo"></canvas>
+                </div>
+            </div>
+            
+            <div id="section-listagem" class="hidden space-y-3">
+                <div id="items-list"></div>
+            </div>
+        </main>
+
+        <button onclick="UI.openModal()" class="floating-add"><i class="ph-bold ph-plus"></i></button>
+    </div>
+
+    <!-- MODAL FORM -->
+    <div id="modal-entry" class="fixed inset-0 bg-black/95 z-[100] hidden flex items-end justify-center p-4 backdrop-blur-sm">
+        <div class="bg-slate-900 w-full max-w-md rounded-[2.5rem] p-6 space-y-5 border border-slate-800 mb-2 shadow-2xl">
+            <div class="flex justify-between items-center">
+                <h3 id="modal-title" class="font-black uppercase italic text-slate-400 tracking-widest">Novo Registro</h3>
+                <button onclick="UI.closeModal()" class="p-2"><i class="ph-bold ph-x text-2xl text-slate-500"></i></button>
+            </div>
+            <form id="entry-form" class="space-y-4">
+                <input type="hidden" id="edit-id">
+                <div id="type-selector-container" class="flex p-1 bg-slate-800 rounded-xl">
+                    <button type="button" onclick="UI.setEntryType('faturamentos')" id="btn-type-f" class="flex-1 py-2 rounded-lg text-[9px] font-black">VENDA</button>
+                    <button type="button" onclick="UI.setEntryType('despesas')" id="btn-type-d" class="flex-1 py-2 rounded-lg text-[9px] font-black">GASTO</button>
+                    <button type="button" onclick="UI.setEntryType('retiradas')" id="btn-type-r" class="flex-1 py-2 rounded-lg text-[9px] font-black">LUCRO</button>
+                </div>
+                <div class="space-y-1">
+                    <p class="text-[9px] font-black text-slate-500 ml-2 uppercase">Identificação</p>
+                    <input type="text" id="inp-desc" placeholder="Ex: Venda Web, Aluguel..." required>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="space-y-1">
+                        <p class="text-[9px] font-black text-slate-500 ml-2 uppercase">Valor (R$)</p>
+                        <input type="number" id="inp-valor" step="0.01" placeholder="0,00" required>
+                    </div>
+                    <div class="space-y-1">
+                        <p class="text-[9px] font-black text-slate-500 ml-2 uppercase">Data</p>
+                        <input type="date" id="inp-data" required>
+                    </div>
+                </div>
+                <label class="flex items-center justify-between p-4 bg-slate-800 border-2 border-dashed border-slate-700 rounded-2xl cursor-pointer">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full bg-[#00ff88]/10 flex items-center justify-center">
+                            <i class="ph-bold ph-camera text-xl text-[#00ff88]"></i>
+                        </div>
+                        <span id="file-status" class="text-[10px] font-black text-slate-400 uppercase">Anexar Comprovativo</span>
+                    </div>
+                    <img id="preview-img" src="" class="w-10 h-10 rounded-lg object-cover border border-[#00ff88] hidden">
+                    <input type="file" id="inp-file" class="hidden" accept="image/*" onchange="UI.processImage(this)">
+                </label>
+                <button type="submit" id="btn-save" class="btn-primary w-full py-4 font-black">SALVAR LANÇAMENTO</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- VIEWER IMAGEM -->
+    <div id="image-viewer" class="fixed inset-0 bg-black/98 z-[200] hidden flex-col items-center justify-center p-20">
+        <div class="w-full max-w-md flex justify-between mb-8 px-4">
+            <button onclick="UI.closeViewer()" class="text-slate-400 text-sm font-black uppercase"><i class="ph-bold ph-caret-left"></i> Voltar</button>
+        </div>
+        <img id="view-full-img" src="" class="max-h-[70vh] border border-white/10 rounded-xl">
+    </div>
+
+    <!-- SCRIPTS NA ORDEM CORRETA -->
     <script src="js/ui.js"></script>
+    <script src="js/database.js"></script>
+    <script src="js/auth.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>
