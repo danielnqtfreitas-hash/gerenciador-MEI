@@ -36,22 +36,33 @@ const UI = {
 
     /**
      * Inicializa os seletores de mês e ano
+     * Corrigido para garantir que o populateYearFilter funcione se chamado externamente
      */
     initDateFilters() {
         const monthContainer = document.getElementById('month-selector');
-        const yearSelect = document.getElementById('year-filter');
         const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
         // Renderiza meses
-        monthContainer.innerHTML = months.map((m, i) => `
-            <button onclick="App.setMonth(${i})" 
-                    class="month-pill px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border 
-                    ${App.currentMonth === i ? 'bg-[#00ff88] text-black border-[#00ff88]' : 'bg-white/5 text-slate-500 border-white/5'}">
-                ${m}
-            </button>
-        `).join('');
+        if (monthContainer) {
+            monthContainer.innerHTML = months.map((m, i) => `
+                <button onclick="App.setMonth(${i})" 
+                        class="month-pill px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border 
+                        ${App.currentMonth === i ? 'bg-[#00ff88] text-black border-[#00ff88]' : 'bg-white/5 text-slate-500 border-white/5'}">
+                    ${m}
+                </button>
+            `).join('');
+        }
 
-        // Renderiza anos (atual e anterior)
+        this.populateYearFilter();
+    },
+
+    /**
+     * Preenche o seletor de anos (Função que o app.js estava a pedir)
+     */
+    populateYearFilter() {
+        const yearSelect = document.getElementById('year-filter');
+        if (!yearSelect) return;
+
         const currentYear = new Date().getFullYear();
         yearSelect.innerHTML = `
             <option value="${currentYear}">${currentYear}</option>
@@ -110,6 +121,8 @@ const UI = {
      */
     renderList(items, type) {
         const container = document.getElementById('items-list');
+        if (!container) return;
+
         if (!items || items.length === 0) {
             container.innerHTML = `
                 <div class="p-10 text-center space-y-4">
@@ -176,6 +189,8 @@ const UI = {
     openModal(editData = null) {
         const modal = document.getElementById('modal-entry');
         const form = document.getElementById('entry-form');
+        if (!modal || !form) return;
+
         form.reset();
         document.getElementById('edit-id').value = '';
         this.compressedBlob = null;
@@ -198,7 +213,8 @@ const UI = {
     },
 
     closeModal() {
-        document.getElementById('modal-entry').classList.add('hidden');
+        const modal = document.getElementById('modal-entry');
+        if (modal) modal.classList.add('hidden');
     },
 
     setEntryType(type) {
@@ -206,12 +222,12 @@ const UI = {
         const btns = { f: 'btn-type-f', d: 'btn-type-d', r: 'btn-type-r' };
         Object.values(btns).forEach(id => {
             const b = document.getElementById(id);
-            b.classList.remove('bg-[#00ff88]', 'text-black', 'bg-white/5', 'text-slate-500');
+            if (b) b.classList.remove('bg-[#00ff88]', 'text-black', 'bg-white/5', 'text-slate-500');
         });
 
         const activeId = btns[type.charAt(0)];
         const activeBtn = document.getElementById(activeId);
-        activeBtn.classList.add('bg-[#00ff88]', 'text-black');
+        if (activeBtn) activeBtn.classList.add('bg-[#00ff88]', 'text-black');
     },
 
     /**
@@ -227,6 +243,7 @@ const UI = {
      */
     showToast(msg) {
         const t = document.getElementById('toast');
+        if (!t) return;
         t.innerText = msg;
         t.style.display = 'block';
         setTimeout(() => { t.style.display = 'none'; }, 3000);
@@ -250,6 +267,14 @@ const UI = {
         a.href = url;
         a.download = `VitrinePro_Export_${App.currentMonth + 1}_${App.currentYear}.csv`;
         a.click();
+    },
+
+    /**
+     * Função chamada pelo seletor de ano no HTML
+     */
+    filterByYear(year) {
+        App.currentYear = parseInt(year);
+        App.refreshUI();
     }
 };
 
