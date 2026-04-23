@@ -5,7 +5,7 @@
 
 const App = {
     userId: null,
-    currentMonth: new Date().getMonth(), // 0-11
+    currentMonth: 'todos', // Define "Todos" como padrão inicial
     currentYear: new Date().getFullYear(),
     currentTab: 'resumo',
     
@@ -25,7 +25,11 @@ const App = {
         console.log("App Inicializada para o utilizador:", uid);
 
         // Configura os filtros de data na UI
-        UI.initDateFilters();
+        if (UI.initDateFilters) {
+            UI.initDateFilters();
+        } else if (UI.init) {
+            UI.init();
+        }
         
         // Inicia a escuta em tempo real do banco de dados
         this.startDataListeners();
@@ -57,27 +61,44 @@ const App = {
             retiradas: this.filterByDate(this.state.retiradas)
         };
 
-        // 2. Calcular Totais do Mês
+        // 2. Calcular Totais do Período (Mês selecionado ou Ano inteiro se for 'todos')
         const totalF = this.sumValues(filteredData.faturamentos);
         const totalD = this.sumValues(filteredData.despesas);
         const totalR = this.sumValues(filteredData.retiradas);
-        const saldoMensal = totalF - totalD - totalR;
+        const saldoPeriodo = totalF - totalD - totalR;
 
-        // 3. Atualizar Cards de Resumo
-        UI.animateValue('total-f', totalF);
-        UI.animateValue('total-d', totalD);
-        UI.animateValue('total-r', totalR);
-        UI.animateValue('saldo-disponivel', saldoMensal);
+        // 3. Atualizar Cards de Resumo na UI
+        // Verifica se a função animateValue ou setCurrencyValue existe
+        if (UI.animateValue) {
+            UI.animateValue('total-f', totalF);
+            UI.animateValue('total-d', totalD);
+            UI.animateValue('total-r', totalR);
+            UI.animateValue('saldo-disponivel', saldoPeriodo);
+        } else if (typeof UI.setCurrencyValue === 'function') {
+            UI.setCurrencyValue('total-f', totalF);
+            UI.setCurrencyValue('total-d', totalD);
+            UI.setCurrencyValue('total-r', totalR);
+            UI.setCurrencyValue('saldo-disponivel', saldoPeriodo);
+        } else {
+            // Fallback direto caso as funções não existam
+            this.updateElementCurrency('total-f', totalF);
+            this.updateElementCurrency('total-d', totalD);
+            this.updateElementCurrency('total-r', totalR);
+            this.updateElementCurrency('saldo-disponivel', saldoPeriodo);
+        }
 
-        // 4. Calcular Limite MEI (Baseado no Ano Inteiro)
+        // 4. Calcular Limite MEI (Sempre baseado no Ano Inteiro)
         this.updateMeiStatus();
 
-        // 5. Atualizar Gráfico (Se estiver na aba resumo)
+        // 5. Atualizar Gráfico ou Lista
         if (this.currentTab === 'resumo') {
-            UI.updateChart(this.getChartData());
+            const chartData = this.getChartData(totalF, totalD, totalR);
+            if (UI.updateChart) UI.updateChart(chartData);
         } else {
             // Se estiver numa aba de listagem, atualiza a lista
-            UI.renderList(filteredData[this.currentTab], this.currentTab);
+            if (UI.renderList) {
+                UI.renderList(filteredData[this.currentTab], this.currentTab);
+            }
         }
     },
 
@@ -87,7 +108,14 @@ const App = {
     filterByDate(dataArray) {
         return dataArray.filter(item => {
             const d = new Date(item.data);
-            return d.getMonth() === this.currentMonth && d.getFullYear() === this.currentYear;
+            const matchesYear = d.getFullYear() === this.currentYear;
+            
+            // Lógica para o filtro "Todos"
+            if (this.currentMonth === 'todos' || this.currentMonth === -1) {
+                return matchesYear;
+            }
+            
+            return matchesYear && d.getMonth() === this.currentMonth;
         });
     },
 
@@ -116,35 +144,53 @@ const App = {
 
         if (bar) bar.style.width = `${percent}%`;
         if (labelPercent) labelPercent.innerText = `${percent}%`;
-        if (labelTotal) labelTotal.innerText = `R$ ${totalAno.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+        if (labelTotal) {
+            labelTotal.innerText = totalAno.toLocaleString('pt-BR', { 
+                style: 'currency', 
+                currency: 'BRL',
+                minimumFractionDigits: 2 
+            });
+        }
     },
 
     /**
-     * Gera os dados formatados para o Chart.js
+     * Gera os dados formatados para o Chart.js com 3 categorias
      */
-    getChartData() {
-        // Agrupa totais por dia ou categoria para o gráfico
-        // Exemplo simplificado: Comparativo Entradas vs Saídas do mês atual
-        const totalEntradas = this.sumValues(this.filterByDate(this.state.faturamentos));
-        const totalSaidas = this.sumValues(this.filterByDate(this.state.despesas)) + 
-                            this.sumValues(this.filterByDate(this.state.retiradas));
-
+    getChartData(f, d, r) {
+        // Estrutura para o gráfico de rosca (Doughnut) conforme o design premium
         return {
-            labels: ['Entradas', 'Saídas'],
+            labels: ['Vendas', 'Custos', 'Lucros'],
             datasets: [{
-                data: [totalEntradas, totalSaidas],
-                backgroundColor: ['#00ff88', '#ef4444'],
-                borderWidth: 0
+                data: [f, d, r],
+                backgroundColor: ['#00ff88', '#ef4444', '#a855f7'],
+                borderWidth: 0,
+                hoverOffset: 15
             }]
         };
     },
 
     /**
-     * Altera o mês de visualização
+     * Altera o mês de visualização (chamado pelo clique nos botões da UI)
      */
     setMonth(m) {
-        this.currentMonth = parseInt(m);
-        UI.updateMonthSelector(this.currentMonth);
+        // Se m for 'todos', mantemos como string, caso contrário convertemos para inteiro
+        this.currentMonth = (m === 'todos') ? 'todos' : parseInt(m);
+        
+        if (UI.updateMonthSelector) {
+            UI.updateMonthSelector(this.currentMonth);
+        }
+        this.refreshUI();
+    },
+
+    /**
+     * Alias para compatibilidade com o ui.js (caso chame UI.selectMonth)
+     */
+    refreshData() {
+        // Mapeia os valores da UI para o estado local do App
+        if (typeof UI.activeMonth !== 'undefined') this.currentMonth = UI.activeMonth;
+        if (typeof UI.activeYear !== 'undefined') this.currentYear = UI.activeYear;
+        if (typeof UI.activeTab !== 'undefined') this.currentTab = UI.activeTab;
+        
         this.refreshUI();
     },
 
@@ -154,8 +200,21 @@ const App = {
     setYear(y) {
         this.currentYear = parseInt(y);
         this.refreshUI();
+    },
+
+    /**
+     * Fallback para atualizar valores monetários
+     */
+    updateElementCurrency(id, val) {
+        const el = document.getElementById(id);
+        if (el) {
+            el.innerText = val.toLocaleString('pt-BR', { 
+                style: 'currency', 
+                currency: 'BRL' 
+            });
+        }
     }
 };
 
-// Exporta para uso global nos eventos de clique do HTML
+// Exporta para uso global
 window.App = App;
