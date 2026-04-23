@@ -1,38 +1,39 @@
 const Auth = {
-    async login(email, pass) {
-        if (!email || !pass) {
-            UI.showToast("Preencha todos os campos");
-            return;
-        }
+    // Configura o provedor de autenticação do Google
+    googleProvider: new firebase.auth.GoogleAuthProvider(),
+
+    async login() {
         try {
-            await firebase.auth().signInWithEmailAndPassword(email, pass);
+            // Define a persistência como LOCAL (mantém logado mesmo fechando a aba ou o navegador)
+            await firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+            
+            // Inicia o processo de login via Popup
+            const result = await firebase.auth().signInWithPopup(this.googleProvider);
+            
+            const user = result.user;
+            UI.showToast(`Olá, ${user.displayName.split(' ')[0]}!`);
+            
         } catch (error) {
-            console.error(error);
-            UI.showToast("E-mail ou senha incorretos");
+            console.error("Erro no login Google:", error);
+            
+            // Tratamento de erro específico para popups bloqueados
+            if (error.code === 'auth/popup-blocked') {
+                UI.showToast("Ligue os pop-ups para logar");
+            } else {
+                UI.showToast("Falha na conexão com Google");
+            }
         }
     },
 
-    async signup(email, pass) {
-        if (!email || !pass) {
-            UI.showToast("Use um e-mail válido");
-            return;
-        }
+    async logout() {
         try {
-            await firebase.auth().createUserWithEmailAndPassword(email, pass);
-            UI.showToast("Conta criada com sucesso!");
+            await firebase.auth().signOut();
+            UI.showToast("Sessão encerrada");
         } catch (error) {
-            UI.showToast("Erro ao criar conta");
+            console.error("Erro ao sair:", error);
         }
-    },
-
-    logout() {
-        firebase.auth().signOut();
     }
 };
 
-// Vinculação dos eventos de clique
-document.getElementById('btn-login').onclick = () => {
-    const e = document.getElementById('login-email').value;
-    const p = document.getElementById('login-pass').value;
-    Auth.login(e, p);
-};
+// Vincula o clique do botão de login (ID definido no index.html)
+document.getElementById('btn-login').onclick = () => Auth.login();
