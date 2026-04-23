@@ -1,21 +1,109 @@
 /**
  * Módulo de Interface (UI) Vitrine Pro
- * Gere a visualização, gráficos, modais e compressão de imagens.
+ * Gere a visualização, gráficos, modais, abas e filtros de data.
  */
 
 const UI = {
     chart: null,
+    activeTab: 'resumo',
+    activeMonth: 'todos', // Define "Todos" como padrão inicial
+    activeYear: new Date().getFullYear(),
     activeModalType: 'faturamentos',
-    compressedBlob: null,
+
+    /**
+     * Inicializa os componentes da interface
+     */
+    init() {
+        this.renderYearFilter();
+        this.renderMonthSelector();
+        console.log("UI Inicializada com sucesso.");
+    },
+
+    /**
+     * Gera as opções do filtro de ano
+     */
+    renderYearFilter() {
+        const select = document.getElementById('year-filter');
+        if (!select) return;
+
+        const currentYear = new Date().getFullYear();
+        select.innerHTML = '';
+        
+        for (let i = currentYear; i >= currentYear - 2; i--) {
+            const opt = document.createElement('option');
+            opt.value = i;
+            opt.textContent = i;
+            select.appendChild(opt);
+        }
+    },
+
+    /**
+     * Gera os botões de meses, incluindo a opção "Todos"
+     */
+    renderMonthSelector() {
+        const container = document.getElementById('month-selector');
+        if (!container) return;
+
+        const meses = [
+            { id: 'todos', nome: 'Todos' },
+            { id: '0', nome: 'Jan' }, { id: '1', nome: 'Fev' },
+            { id: '2', nome: 'Mar' }, { id: '3', nome: 'Abr' },
+            { id: '4', nome: 'Mai' }, { id: '5', nome: 'Jun' },
+            { id: '6', nome: 'Jul' }, { id: '7', nome: 'Ago' },
+            { id: '8', nome: 'Set' }, { id: '9', nome: 'Out' },
+            { id: '10', nome: 'Nov' }, { id: '11', nome: 'Dez' }
+        ];
+
+        container.innerHTML = meses.map(m => {
+            const isActive = this.activeMonth === m.id;
+            return `
+                <button onclick="UI.selectMonth('${m.id}')" 
+                        id="month-${m.id}"
+                        class="px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all duration-300 border
+                        ${isActive 
+                            ? 'bg-[#00ff88] text-black shadow-lg shadow-[#00ff88]/20 border-[#00ff88]' 
+                            : 'bg-white/5 text-slate-400 border-white/5 hover:bg-white/10'}">
+                    ${m.nome}
+                </button>
+            `;
+        }).join('');
+    },
+
+    /**
+     * Altera o mês selecionado e dispara atualização de dados
+     */
+    selectMonth(monthId) {
+        this.activeMonth = monthId;
+        this.renderMonthSelector();
+        
+        // Sincroniza com a lógica do App se disponível
+        if (window.App && typeof window.App.refreshData === 'function') {
+            window.App.refreshData();
+        } else if (window.App && typeof window.App.refreshUI === 'function') {
+            window.App.refreshUI();
+        }
+    },
+
+    /**
+     * Altera o ano e atualiza os dados
+     */
+    filterByYear(year) {
+        this.activeYear = parseInt(year);
+        // Compatibilidade com diferentes versões do app.js
+        if (window.App) {
+            if (typeof window.App.refreshData === 'function') window.App.refreshData();
+            else if (typeof window.App.refreshUI === 'function') window.App.refreshUI();
+        }
+    },
 
     /**
      * Alterna entre as abas principais (Resumo, Vendas, Custos, Lucros)
      */
     switchTab(tab) {
-        App.currentTab = tab;
+        this.activeTab = tab;
         
-        // Atualiza botões da navegação
-        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        // Atualiza estilo dos botões da navbar
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         const activeBtn = document.getElementById(`btn-tab-${tab}`);
         if (activeBtn) activeBtn.classList.add('active');
 
@@ -24,75 +112,93 @@ const UI = {
         const sectionListagem = document.getElementById('section-listagem');
 
         if (tab === 'resumo') {
-            sectionResumo.classList.remove('hidden');
-            sectionListagem.classList.add('hidden');
+            if (sectionResumo) sectionResumo.classList.remove('hidden');
+            if (sectionListagem) sectionListagem.classList.add('hidden');
         } else {
-            sectionResumo.classList.add('hidden');
-            sectionListagem.classList.remove('hidden');
+            if (sectionResumo) sectionResumo.classList.add('hidden');
+            if (sectionListagem) sectionListagem.classList.remove('hidden');
+            this.activeModalType = tab; 
         }
 
-        App.refreshUI();
+        // Refresh dos dados
+        if (window.App) {
+            if (typeof window.App.refreshData === 'function') window.App.refreshData();
+            else if (typeof window.App.refreshUI === 'function') window.App.refreshUI();
+        }
     },
 
     /**
-     * Inicializa os seletores de mês e ano
-     * Corrigido para garantir que o populateYearFilter funcione se chamado externamente
+     * Renderiza a lista de itens (Vendas, Despesas ou Retiradas)
      */
-    initDateFilters() {
-        const monthContainer = document.getElementById('month-selector');
-        const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    renderList(items) {
+        const container = document.getElementById('items-list');
+        if (!container) return;
 
-        // Renderiza meses
-        if (monthContainer) {
-            monthContainer.innerHTML = months.map((m, i) => `
-                <button onclick="App.setMonth(${i})" 
-                        class="month-pill px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border 
-                        ${App.currentMonth === i ? 'bg-[#00ff88] text-black border-[#00ff88]' : 'bg-white/5 text-slate-500 border-white/5'}">
-                    ${m}
-                </button>
-            `).join('');
+        if (!items || items.length === 0) {
+            container.innerHTML = `
+                <div class="p-10 text-center space-y-4">
+                    <i class="ph ph-folder-open text-4xl text-slate-700"></i>
+                    <p class="text-xs text-slate-500 font-bold uppercase tracking-widest">Nenhum registo encontrado</p>
+                </div>
+            `;
+            return;
         }
 
-        this.populateYearFilter();
+        container.innerHTML = items.map(item => {
+            const date = new Date(item.data).toLocaleDateString('pt-PT');
+            const valor = Number(item.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            
+            return `
+                <div class="glass p-5 rounded-2xl flex justify-between items-center group animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <div class="flex items-center gap-4">
+                        <div class="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-white/5">
+                            <i class="ph-bold ${this.getIconForType(item.type)} text-lg text-slate-400"></i>
+                        </div>
+                        <div>
+                            <h4 class="text-xs font-bold text-white uppercase">${item.descricao}</h4>
+                            <p class="text-[9px] text-slate-500 font-bold uppercase">${date}</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <div class="text-right">
+                            <p class="text-xs font-black ${this.getColorForType(item.type)}">${valor}</p>
+                        </div>
+                        <div class="flex gap-1">
+                            <button onclick="UI.editItem('${item.type}', '${item.id}')" class="p-2 text-slate-500 hover:text-[#00ff88] transition-colors"><i class="ph ph-pencil-simple"></i></button>
+                            <button onclick="Database.deleteItem('${item.type}', '${item.id}')" class="p-2 text-slate-500 hover:text-red-500 transition-colors"><i class="ph ph-trash"></i></button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    },
+
+    getIconForType(type) {
+        const icons = { faturamentos: 'ph-trend-up', despesas: 'ph-trend-down', retiradas: 'ph-wallet' };
+        return icons[type] || 'ph-dots-three';
+    },
+
+    getColorForType(type) {
+        const colors = { faturamentos: 'text-[#00ff88]', despesas: 'text-red-500', retiradas: 'text-purple-400' };
+        return colors[type] || 'text-white';
     },
 
     /**
-     * Preenche o seletor de anos (Função que o app.js estava a pedir)
+     * Atualiza o gráfico de fluxo de caixa (Doughnut)
      */
-    populateYearFilter() {
-        const yearSelect = document.getElementById('year-filter');
-        if (!yearSelect) return;
-
-        const currentYear = new Date().getFullYear();
-        yearSelect.innerHTML = `
-            <option value="${currentYear}">${currentYear}</option>
-            <option value="${currentYear - 1}">${currentYear - 1}</option>
-        `;
-        yearSelect.value = App.currentYear;
-    },
-
-    /**
-     * Atualiza o visual do seletor de meses
-     */
-    updateMonthSelector(activeIdx) {
-        const buttons = document.querySelectorAll('.month-pill');
-        buttons.forEach((btn, i) => {
-            if (i === activeIdx) {
-                btn.classList.add('bg-[#00ff88]', 'text-black', 'border-[#00ff88]');
-                btn.classList.remove('bg-white/5', 'text-slate-500', 'border-white/5');
-            } else {
-                btn.classList.remove('bg-[#00ff88]', 'text-black', 'border-[#00ff88]');
-                btn.classList.add('bg-white/5', 'text-slate-500', 'border-white/5');
-            }
-        });
-    },
-
-    /**
-     * Atualiza ou cria o gráfico de fluxo de caixa
-     */
-    updateChart(data) {
+    updateChart(f, d, r) {
         const ctx = document.getElementById('chartResumo');
         if (!ctx) return;
+
+        const data = {
+            labels: ['Vendas', 'Custos', 'Lucros'],
+            datasets: [{
+                data: [f, d, r],
+                backgroundColor: ['#00ff88', '#ef4444', '#a855f7'],
+                borderWidth: 0,
+                hoverOffset: 15
+            }]
+        };
 
         if (this.chart) {
             this.chart.data = data;
@@ -117,73 +223,6 @@ const UI = {
     },
 
     /**
-     * Renderiza a lista de itens (Vendas, Despesas ou Retiradas)
-     */
-    renderList(items, type) {
-        const container = document.getElementById('items-list');
-        if (!container) return;
-
-        if (!items || items.length === 0) {
-            container.innerHTML = `
-                <div class="p-10 text-center space-y-4">
-                    <i class="ph ph-folder-open text-4xl text-slate-700"></i>
-                    <p class="text-xs text-slate-500 font-bold uppercase tracking-widest">Nenhum registo encontrado</p>
-                </div>
-            `;
-            return;
-        }
-
-        container.innerHTML = items.map(item => {
-            const date = new Date(item.data).toLocaleDateString('pt-PT');
-            const valor = Number(item.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-            
-            return `
-                <div class="glass p-5 rounded-2xl flex justify-between items-center group animate-in fade-in slide-in-from-bottom-2">
-                    <div class="flex items-center gap-4">
-                        <div class="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-white/5">
-                            <i class="ph-bold ${this.getIconForType(type)} text-lg text-slate-400"></i>
-                        </div>
-                        <div>
-                            <h4 class="text-xs font-bold text-white uppercase">${item.descricao}</h4>
-                            <p class="text-[9px] text-slate-500 font-bold uppercase">${date}</p>
-                        </div>
-                    </div>
-                    <div class="flex items-center gap-4">
-                        <div class="text-right">
-                            <p class="text-xs font-black ${this.getColorForType(type)}">R$ ${valor}</p>
-                            ${item.comprovanteUrl ? `<button onclick="window.open('${item.comprovanteUrl}')" class="text-[8px] font-black text-blue-400 uppercase tracking-tighter">Ver Anexo</button>` : ''}
-                        </div>
-                        <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onclick="UI.editItem('${type}', '${item.id}')" class="p-2 text-slate-400 hover:text-[#00ff88]"><i class="ph ph-pencil-simple"></i></button>
-                            <button onclick="Database.deleteItem('${type}', '${item.id}', '${item.comprovanteUrl || ''}')" class="p-2 text-slate-400 hover:text-red-500"><i class="ph ph-trash"></i></button>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }).join('');
-    },
-
-    getIconForType(type) {
-        const icons = { faturamentos: 'ph-receipt', despesas: 'ph-shopping-cart', retiradas: 'ph-hand-coins' };
-        return icons[type] || 'ph-dots-three';
-    },
-
-    getColorForType(type) {
-        const colors = { faturamentos: 'text-[#00ff88]', despesas: 'text-red-500', retiradas: 'text-purple-400' };
-        return colors[type] || 'text-white';
-    },
-
-    /**
-     * Animação suave para números nos cards
-     */
-    animateValue(id, value) {
-        const el = document.getElementById(id);
-        if (!el) return;
-        const formatted = `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
-        el.innerText = formatted;
-    },
-
-    /**
      * Gestão de Modais
      */
     openModal(editData = null) {
@@ -193,20 +232,19 @@ const UI = {
 
         form.reset();
         document.getElementById('edit-id').value = '';
-        this.compressedBlob = null;
 
         if (editData) {
-            document.getElementById('modal-title').innerText = "Editar Registo";
+            document.getElementById('modal-title').innerText = "Editar Lançamento";
             document.getElementById('edit-id').value = editData.id;
             document.getElementById('inp-desc').value = editData.descricao;
             document.getElementById('inp-valor').value = editData.valor;
             document.getElementById('inp-data').value = editData.data;
             this.setEntryType(editData.type);
         } else {
-            document.getElementById('modal-title').innerText = "Lançar Operação";
-            const currentTabType = App.currentTab === 'resumo' ? 'faturamentos' : App.currentTab;
-            this.setEntryType(currentTabType);
-            document.getElementById('inp-data').value = new Date().toISOString().split('T')[0];
+            document.getElementById('modal-title').innerText = "Novo Lançamento";
+            const typeToSet = (this.activeTab !== 'resumo') ? this.activeTab : 'faturamentos';
+            this.setEntryType(typeToSet);
+            document.getElementById('inp-data').valueAsDate = new Date();
         }
 
         modal.classList.remove('hidden');
@@ -219,28 +257,34 @@ const UI = {
 
     setEntryType(type) {
         this.activeModalType = type;
-        const btns = { f: 'btn-type-f', d: 'btn-type-d', r: 'btn-type-r' };
-        Object.values(btns).forEach(id => {
-            const b = document.getElementById(id);
-            if (b) b.classList.remove('bg-[#00ff88]', 'text-black', 'bg-white/5', 'text-slate-500');
+        const btns = {
+            faturamentos: document.getElementById('btn-type-f'),
+            despesas: document.getElementById('btn-type-d'),
+            retiradas: document.getElementById('btn-type-r')
+        };
+
+        Object.values(btns).forEach(b => {
+            if (b) b.className = "flex-1 py-3 rounded-xl text-[9px] font-black transition-all text-slate-500";
         });
 
-        const activeId = btns[type.charAt(0)];
-        const activeBtn = document.getElementById(activeId);
-        if (activeBtn) activeBtn.classList.add('bg-[#00ff88]', 'text-black');
+        const activeColors = {
+            faturamentos: "bg-green-500/20 text-green-400 border border-green-500/30",
+            despesas: "bg-red-500/20 text-red-400 border border-red-500/30",
+            retiradas: "bg-purple-500/20 text-purple-400 border border-purple-500/30"
+        };
+
+        if (btns[type]) {
+            btns[type].className = `flex-1 py-3 rounded-xl text-[9px] font-black transition-all ${activeColors[type]}`;
+        }
     },
 
-    /**
-     * Prepara a edição de um item
-     */
     editItem(type, id) {
-        const item = App.state[type].find(i => i.id === id);
-        if (item) this.openModal(item);
+        if (window.App && window.App.data && window.App.data[type]) {
+            const item = window.App.data[type].find(i => i.id === id);
+            if (item) this.openModal({ ...item, type });
+        }
     },
 
-    /**
-     * Mostra mensagens temporárias (Toast)
-     */
     showToast(msg) {
         const t = document.getElementById('toast');
         if (!t) return;
@@ -249,33 +293,19 @@ const UI = {
         setTimeout(() => { t.style.display = 'none'; }, 3000);
     },
 
-    /**
-     * Exportação simples de dados (CSV)
-     */
     exportData() {
-        const allData = [...App.state.faturamentos, ...App.state.despesas, ...App.state.retiradas];
-        if (allData.length === 0) return this.showToast("Sem dados para exportar.");
-
-        let csv = "Tipo;Data;Descricao;Valor\n";
-        allData.forEach(i => {
-            csv += `${i.type};${i.data};${i.descricao};${i.valor}\n`;
-        });
-
-        const blob = new Blob([csv], { type: 'text/csv' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `VitrinePro_Export_${App.currentMonth + 1}_${App.currentYear}.csv`;
-        a.click();
-    },
-
-    /**
-     * Função chamada pelo seletor de ano no HTML
-     */
-    filterByYear(year) {
-        App.currentYear = parseInt(year);
-        App.refreshUI();
+        if (window.App && typeof window.App.exportToCSV === 'function') {
+            window.App.exportToCSV();
+        } else {
+            this.showToast("Exportação em processamento...");
+        }
     }
 };
 
+// Vincula ao objeto window para acesso global
 window.UI = UI;
+
+// Inicializa a interface quando o DOM estiver pronto
+document.addEventListener('DOMContentLoaded', () => {
+    UI.init();
+});
