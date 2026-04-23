@@ -1,95 +1,131 @@
 /**
  * Módulo de Base de Dados (Firestore)
- * Implementa filtragem em memória para evitar erros de índice.
+ * Organizado para gravar dados vinculados ao ID único do utilizador.
  */
 
 const Database = {
     /**
-     * Subscreve aos dados de uma coleção filtrando por utilizador
-     * @param {string} collectionName - Nome da coleção (faturamentos, despesas, retiradas)
-     * @param {string} userId - ID do utilizador logado
-     * @param {function} callback - Função a executar quando os dados mudarem
+     * Subscreve aos dados.
+     * Para garantir performance e evitar erros de índice, 
+     * filtramos os dados do utilizador logado em tempo real.
      */
     subscribe(collectionName, userId, callback) {
-        // IMPORTANTE: Pedimos a coleção básica sem orderBy ou where complexos 
-        // para evitar a necessidade de criar índices compostos no console do Firebase.
-        return db.collection(collectionName)
+        if (!userId) return;
+
+        // Acessamos a coleção global (ex: faturamentos)
+        return firebase.firestore().collection(collectionName)
+            .where("userId", "==", userId) // Filtro de segurança
             .onSnapshot(snapshot => {
                 const data = snapshot.docs
-                    .map(doc => ({ id: doc.id, ...doc.data() }))
-                    // Filtramos pelo utilizador aqui no cliente (em memória)
-                    .filter(item => item.userId === userId)
-                    // Ordenamos por data de forma decrescente
+                    .map(doc => ({ id: doc.id, type: collectionName, ...doc.data() }))
                     .sort((a, b) => new Date(b.data) - new Date(a.data));
 
                 callback(data);
             }, error => {
-                console.error(`Erro ao assinar ${collectionName}:`, error);
-                UI.showToast("Erro ao sincronizar dados.");
+                console.error(`Erro ao ler ${collectionName}:`, error);
             });
     },
 
     /**
-     * Adiciona ou atualiza um item
+     * Grava os dados no Firestore.
+     * Garante que cada registo tenha o selo do utilizador (userId).
      */
-    async saveItem(collectionName, data, id = null) {
+    async saveItem(collectionName, data, userId) {
+        if (!userId) {
+            UI.showToast("Erro: Utilizador não autenticado.");
+            return false;
+        }
+
         try {
-            if (id) {
-                await db.collection(collectionName).doc(id).update(data);
-                UI.showToast("Atualizado com sucesso!");
+            // Preparar o objeto para gravação
+            const payload = {
+                descricao: data.descricao,
+                valor: parseFloat(data.valor) || 0,
+                data: data.data,
+                userId: userId, // Isto vincula o dado à "pasta" do utilizador
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            if (data.id && data.id.trim() !== "") {
+                // Atualizar existente
+                await firebase.firestore().collection(collectionName).doc(data.id).update(payload);
+                UI.showToast("Registo atualizado!");
             } else {
-                await db.collection(collectionName).add(data);
-                UI.showToast("Guardado com sucesso!");
+                // Criar novo
+                payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+                await firebase.firestore().collection(collectionName).add(payload);
+                UI.showToast("Registo guardado com sucesso!");
             }
+            
             return true;
         } catch (error) {
-            console.error("Erro ao guardar item:", error);
-            UI.showToast("Erro ao guardar os dados.");
+            console.error("Erro ao salvar no Firestore:", error);
+            UI.showToast("Erro ao gravar no banco de dados.");
             return false;
         }
     },
 
     /**
-     * Elimina um item e o seu anexo (se existir)
+     * Elimina um registo
      */
-    async deleteItem(collectionName, id, comprovanteUrl = '') {
-        if (!confirm("Tem a certeza que deseja eliminar este registo?")) return;
+    async deleteItem(collectionName, id) {
+        if (!confirm("Confirmar exclusão?")) return;
 
         try {
-            // Se houver imagem no Storage, tentamos eliminar
-            if (comprovanteUrl && comprovanteUrl.includes('firebasestorage')) {
-                try {
-                    const fileRef = storage.refFromURL(comprovanteUrl);
-                    await fileRef.delete();
-                } catch (e) {
-                    console.warn("Ficheiro não encontrado no storage ou erro ao eliminar.");
-                }
-            }
-
-            await db.collection(collectionName).doc(id).delete();
-            UI.showToast("Registo eliminado.");
+            await firebase.firestore().collection(collectionName).doc(id).delete();
+            UI.showToast("Eliminado com sucesso.");
         } catch (error) {
-            console.error("Erro ao eliminar:", error);
-            UI.showToast("Não foi possível eliminar o registo.");
-        }
-    },
-
-    /**
-     * Upload de imagem com compressão básica
-     */
-    async uploadFile(file, path) {
-        if (!file) return null;
-        
-        try {
-            const ref = storage.ref().child(path);
-            const snapshot = await ref.put(file);
-            return await snapshot.ref.getDownloadURL();
-        } catch (error) {
-            console.error("Erro no upload:", error);
-            UI.showToast("Falha ao subir imagem.");
-            return null;
+            UI.showToast("Erro ao eliminar.");
         }
     }
 };
+
+/**
+ * Listener do Formulário
+ * Captura o evento de submit e envia para o Database.saveItem
+ */
+document.addEventListener('DOMContentLoaded', () => {
+    const form = document.getElementById('entry-form');
+    if (form) {
+        form.onsubmit = async (e) => {
+            e.preventDefault();
+            
+            const btn = document.getElementById('btn-save');
+            const originalText = btn.innerHTML;
+            
+            // Dados do formulário
+            const itemData = {
+                id: document.getElementById('edit-id').value,
+                descricao: document.getElementById('inp-desc').value,
+                valor: document.getElementById('inp-valor').value,
+                data: document.getElementById('inp-data').value
+            };
+
+            // Tipo de coleção (faturamentos, despesas, retiradas)
+            const collectionType = UI.activeModalType || 'faturamentos';
+            
+            // ID do utilizador logado (vem do App.userId ou firebase.auth())
+            const currentUserId = firebase.auth().currentUser ? firebase.auth().currentUser.uid : null;
+
+            if (!currentUserId) {
+                UI.showToast("Sessão expirada. Faça login novamente.");
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = "<i class='ph ph-circle-notch animate-spin'></i> A GUARDAR...";
+
+            const success = await Database.saveItem(collectionType, itemData, currentUserId);
+
+            if (success) {
+                UI.closeModal();
+                // O onSnapshot cuidará de atualizar a lista automaticamente
+            }
+
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        };
+    }
+});
 
 window.Database = Database;
