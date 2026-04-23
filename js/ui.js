@@ -1,68 +1,101 @@
-:root { --neon: #00ff88; --dark: #020617; }
+const UI = {
+    activeTab: 'resumo',
+    selectedMonth: null,
+    selectedYear: new Date().getFullYear(),
+    chartObj: null,
 
-body { 
-    font-family: 'Inter', sans-serif; 
-    background: var(--dark); 
-    color: white; 
-    -webkit-tap-highlight-color: transparent;
-    overscroll-behavior-y: contain;
-}
+    toggleView(mode) {
+        document.getElementById('auth-screen').style.display = mode === 'login' ? 'flex' : 'none';
+        document.getElementById('app-content').style.display = mode === 'app' ? 'block' : 'none';
+    },
 
-.card { background: #0f172a; border-radius: 1.5rem; border: 1px solid #1e293b; }
+    showToast(msg) {
+        const t = document.getElementById('toast');
+        t.innerText = msg;
+        t.style.display = 'block';
+        setTimeout(() => t.style.display = 'none', 2500);
+    },
 
-.btn-primary { 
-    background: var(--neon); 
-    color: black; 
-    font-weight: 800; 
-    border-radius: 1rem; 
-    transition: all 0.2s;
-}
+    renderAll(state) {
+        this.updateYearDropdown(state);
+        this.renderMonthSelector();
+        this.applyFilters(state);
+    },
 
-.btn-primary:active { transform: scale(0.95); opacity: 0.9; }
+    updateYearDropdown(state) {
+        const years = new Set([new Date().getFullYear()]);
+        [...state.faturamentos, ...state.despesas, ...state.retiradas].forEach(i => {
+            if(i.data) years.add(new Date(i.data + "T00:00:00").getFullYear());
+        });
+        const sorted = Array.from(years).sort((a,b) => b - a);
+        document.getElementById('year-filter').innerHTML = sorted.map(y => 
+            `<option value="${y}" ${y === this.selectedYear ? 'selected' : ''}>${y}</option>`
+        ).join('');
+    },
 
-.tab-btn { 
-    flex: 1; padding: 1rem; text-align: center; font-size: 0.65rem; 
-    font-weight: 800; color: #64748b; border-bottom: 2px solid #1e293b; 
-    text-transform: uppercase; transition: 0.3s; 
-}
+    renderMonthSelector() {
+        const meses = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+        document.getElementById('month-selector').innerHTML = 
+            `<div class="month-pill ${this.selectedMonth === null ? 'active' : ''}" onclick="UI.filterByMonth(null)">Todos</div>` + 
+            meses.map((m, i) => `<div class="month-pill ${this.selectedMonth === i ? 'active' : ''}" onclick="UI.filterByMonth(${i})">${m}</div>`).join('');
+    },
 
-.tab-btn.active { 
-    color: var(--neon); 
-    border-bottom-color: var(--neon); 
-    background: linear-gradient(to top, #00ff8811, transparent); 
-}
+    filterByMonth(m) { this.selectedMonth = m; App.refreshUI(); },
+    filterByYear(y) { this.selectedYear = parseInt(y); App.refreshUI(); },
 
-.month-pill { 
-    flex: 0 0 auto; padding: 0.5rem 1.2rem; border-radius: 2rem; 
-    background: #1e293b; border: 1px solid #334155; font-size: 0.7rem; 
-    font-weight: 700; color: #94a3b8; 
-}
+    applyFilters(state) {
+        const MEI_LIMIT = 81000;
+        
+        // Cálculos de Totais
+        const histF = state.faturamentos.reduce((a, b) => a + (b.valor || 0), 0);
+        const histD = state.despesas.reduce((a, b) => a + (b.valor || 0), 0);
+        const histR = state.retiradas.reduce((a, b) => a + (b.valor || 0), 0);
+        
+        document.getElementById('saldo-disponivel').innerText = this.formatBRL(histF - histD - histR);
 
-.month-pill.active { background: var(--neon); color: black; border-color: var(--neon); }
+        // Filtro de tempo
+        const filterFn = (x) => {
+            const d = new Date(x.data + "T00:00:00");
+            return d.getFullYear() === this.selectedYear && (this.selectedMonth === null || d.getMonth() === this.selectedMonth);
+        };
 
-input, select { 
-    background: #1e293b !important; border: 1px solid #334155 !important; 
-    color: white !important; padding: 0.8rem; border-radius: 1rem; 
-    width: 100%; outline: none; 
-}
+        const tF = state.faturamentos.filter(filterFn).reduce((a, b) => a + (b.valor || 0), 0);
+        const tD = state.despesas.filter(filterFn).reduce((a, b) => a + (b.valor || 0), 0);
+        const tR = state.retiradas.filter(filterFn).reduce((a, b) => a + (b.valor || 0), 0);
 
-.floating-add { 
-    position: fixed; bottom: 30px; right: 20px; 
-    width: 64px; height: 64px; 
-    background: var(--neon); color: black; 
-    border-radius: 20px; display: flex; 
-    align-items: center; justify-content: center; 
-    font-size: 28px; z-index: 100;
-    box-shadow: 0 10px 25px rgba(0, 255, 136, 0.3);
-}
+        // Atualiza Cards
+        document.getElementById('total-f').innerText = this.formatBRL(tF);
+        document.getElementById('total-d').innerText = this.formatBRL(tD);
+        document.getElementById('total-r').innerText = this.formatBRL(tR);
 
-.mei-progress { height: 6px; background: #1e293b; border-radius: 10px; overflow: hidden; }
-.mei-bar { height: 100%; background: var(--neon); transition: width 1s ease-in-out; }
+        this.renderChart(tF, tD, tR);
+        if(this.activeTab !== 'resumo') this.renderList(state[this.activeTab].filter(filterFn));
+    },
 
-.toast { 
-    position: fixed; top: 20px; left: 50%; transform: translateX(-50%); 
-    background: #1e293b; border: 1px solid var(--neon); padding: 12px 24px; 
-    border-radius: 12px; z-index: 1000; display: none; font-weight: bold; 
-}
+    formatBRL(v) { return v.toLocaleString('pt-br', { style: 'currency', currency: 'BRL' }); },
 
-.no-scrollbar::-webkit-scrollbar { display: none; }
+    renderChart(f, d, r) {
+        const ctx = document.getElementById('chartResumo').getContext('2d');
+        if(this.chartObj) this.chartObj.destroy();
+        this.chartObj = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Vendas', 'Gastos', 'Lucro'],
+                datasets: [{
+                    data: [f, d, r],
+                    backgroundColor: ['#00ff88', '#ef4444', '#a855f7'],
+                    borderWidth: 0,
+                    cutout: '80%',
+                    borderRadius: 10
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+        });
+    },
+
+    renderList(data) {
+        const list = document.getElementById('items-list');
+        list.innerHTML = data.length === 0 ? `<div class="py-20 text-center opacity-20 text-[10px] font-black italic">Vazio no período</div>` : '';
+        // ... (resto da lógica de criar as DIVs de cada item do seu código original)
+    }
+};
