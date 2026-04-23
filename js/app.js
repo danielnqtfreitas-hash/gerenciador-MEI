@@ -1,12 +1,15 @@
 /**
- * Núcleo da Aplicação - Vitrine Pro
- * Gere o estado global, filtros, cálculos financeiros e integração com o Firestore.
+ * Módulo Principal Vitrine Pro
+ * Gere o estado global, cálculos e atualizações de interface.
  */
 
 const App = {
-    user: null,
     userId: null,
-    // Estado local para evitar leituras excessivas ao banco de dados
+    currentMonth: new Date().getMonth(), // 0-11
+    currentYear: new Date().getFullYear(),
+    currentTab: 'resumo',
+    
+    // Estado global dos dados
     state: {
         faturamentos: [],
         despesas: [],
@@ -14,126 +17,145 @@ const App = {
     },
 
     /**
-     * Inicializa a aplicação após a confirmação do login
-     * @param {string} uid - ID único do utilizador do Firebase
+     * Inicializa a aplicação após o login
+     * @param {string} uid - ID do utilizador vindo do Firebase Auth
      */
     init(uid) {
         this.userId = uid;
-        console.log("Sistema Elite inicializado para o utilizador:", uid);
+        console.log("App Inicializada para o utilizador:", uid);
 
-        // Inicia os escutas de dados em tempo real
-        this.startDataListeners();
-
-        // Configura a interface inicial
-        UI.renderMonthSelector();
-        UI.populateYearFilter();
+        // Configura os filtros de data na UI
+        UI.initDateFilters();
         
-        // Regista o Service Worker para suporte PWA (Offline)
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('./sw.js')
-                .catch(err => console.warn("Service Worker não registado:", err));
-        }
+        // Inicia a escuta em tempo real do banco de dados
+        this.startDataListeners();
     },
 
     /**
-     * Estabelece conexão em tempo real com as coleções do Firestore
+     * Configura os listeners do Firestore para atualizações em tempo real
      */
     startDataListeners() {
         const collections = ['faturamentos', 'despesas', 'retiradas'];
         
-        collections.forEach(col => {
-            Database.subscribe(col, this.userId, (docs) => {
-                this.state[col] = docs;
+        collections.forEach(colName => {
+            // Database.subscribe deve estar definido em js/database.js
+            Database.subscribe(colName, this.userId, (data) => {
+                this.state[colName] = data;
                 this.refreshUI();
             });
         });
     },
 
     /**
-     * Orquestra a atualização de todos os componentes visuais
+     * Filtra e processa os dados para atualizar todos os componentes da UI
      */
     refreshUI() {
-        const MEI_LIMIT = 81000;
-        
-        // 1. Cálculos de Totais Gerais (Saldo em Caixa)
-        const totalVendas = this.state.faturamentos.reduce((a, b) => a + (Number(b.valor) || 0), 0);
-        const totalGastos = this.state.despesas.reduce((a, b) => a + (Number(b.valor) || 0), 0);
-        const totalRetiradas = this.state.retiradas.reduce((a, b) => a + (Number(b.valor) || 0), 0);
-        
-        const saldoAtual = totalVendas - totalGastos - totalRetiradas;
-        UI.animateValue('saldo-disponivel', saldoAtual);
-
-        // 2. Aplicação de Filtros (Ano e Mês selecionados)
-        const filterFn = (item) => {
-            const date = new Date(item.data + "T00:00:00");
-            const matchYear = date.getFullYear() === UI.selectedYear;
-            const matchMonth = UI.selectedMonth === null || date.getMonth() === UI.selectedMonth;
-            return matchYear && matchMonth;
+        // 1. Filtrar dados pelo mês e ano selecionados
+        const filteredData = {
+            faturamentos: this.filterByDate(this.state.faturamentos),
+            despesas: this.filterByDate(this.state.despesas),
+            retiradas: this.filterByDate(this.state.retiradas)
         };
 
-        const fFiltered = this.state.faturamentos.filter(filterFn);
-        const dFiltered = this.state.despesas.filter(filterFn);
-        const rFiltered = this.state.retiradas.filter(filterFn);
+        // 2. Calcular Totais do Mês
+        const totalF = this.sumValues(filteredData.faturamentos);
+        const totalD = this.sumValues(filteredData.despesas);
+        const totalR = this.sumValues(filteredData.retiradas);
+        const saldoMensal = totalF - totalD - totalR;
 
-        // 3. Totais do Período Filtrado
-        const tF = fFiltered.reduce((a, b) => a + (Number(b.valor) || 0), 0);
-        const tD = dFiltered.reduce((a, b) => a + (Number(b.valor) || 0), 0);
-        const tR = rFiltered.reduce((a, b) => a + (Number(b.valor) || 0), 0);
+        // 3. Atualizar Cards de Resumo
+        UI.animateValue('total-f', totalF);
+        UI.animateValue('total-d', totalD);
+        UI.animateValue('total-r', totalR);
+        UI.animateValue('saldo-disponivel', saldoMensal);
 
-        document.getElementById('total-f').innerText = UI.formatBRL(tF);
-        document.getElementById('total-d').innerText = UI.formatBRL(tD);
-        document.getElementById('total-r').innerText = UI.formatBRL(tR);
+        // 4. Calcular Limite MEI (Baseado no Ano Inteiro)
+        this.updateMeiStatus();
 
-        // 4. Monitorização do Limite MEI (Sempre Anual)
-        const fAnualMEI = this.state.faturamentos
-            .filter(i => new Date(i.data + "T00:00:00").getFullYear() === UI.selectedYear)
-            .reduce((a, b) => a + (Number(b.valor) || 0), 0);
-        
-        const percentagemMEI = Math.min((fAnualMEI / MEI_LIMIT) * 100, 100);
-        document.getElementById('mei-total-val').innerText = UI.formatBRL(fAnualMEI);
-        document.getElementById('mei-percent').innerText = `${percentagemMEI.toFixed(1)}%`;
-        document.getElementById('mei-bar').style.width = `${percentagemMEI}%`;
-
-        // Cores de alerta para o limite MEI
-        if (percentagemMEI > 90) {
-            document.getElementById('mei-bar').style.background = 'linear-gradient(90deg, #ff4444, #cc0000)';
+        // 5. Atualizar Gráfico (Se estiver na aba resumo)
+        if (this.currentTab === 'resumo') {
+            UI.updateChart(this.getChartData());
         } else {
-            document.getElementById('mei-bar').style.background = 'linear-gradient(90deg, #00ff88, #00bd65)';
+            // Se estiver numa aba de listagem, atualiza a lista
+            UI.renderList(filteredData[this.currentTab], this.currentTab);
         }
+    },
 
-        // 5. Atualização do Gráfico e Listagens
-        UI.renderChart(tF, tD, tR);
-        
-        if (UI.activeTab !== 'resumo') {
-            const map = {
-                'faturamentos': fFiltered,
-                'despesas': dFiltered,
-                'retiradas': rFiltered
-            };
-            UI.renderItemsList(map[UI.activeTab]);
-        }
+    /**
+     * Filtra um array de objetos pela data selecionada no estado
+     */
+    filterByDate(dataArray) {
+        return dataArray.filter(item => {
+            const d = new Date(item.data);
+            return d.getMonth() === this.currentMonth && d.getFullYear() === this.currentYear;
+        });
+    },
+
+    /**
+     * Soma o campo 'valor' de um array de objetos
+     */
+    sumValues(array) {
+        return array.reduce((acc, curr) => acc + (Number(curr.valor) || 0), 0);
+    },
+
+    /**
+     * Calcula o progresso do limite anual do MEI (R$ 81.000,00)
+     */
+    updateMeiStatus() {
+        const faturamentosAno = this.state.faturamentos.filter(item => {
+            return new Date(item.data).getFullYear() === this.currentYear;
+        });
+
+        const totalAno = this.sumValues(faturamentosAno);
+        const limiteMei = 81000;
+        const percent = Math.min((totalAno / limiteMei) * 100, 100).toFixed(1);
+
+        const bar = document.getElementById('mei-bar');
+        const labelPercent = document.getElementById('mei-percent');
+        const labelTotal = document.getElementById('mei-total-val');
+
+        if (bar) bar.style.width = `${percent}%`;
+        if (labelPercent) labelPercent.innerText = `${percent}%`;
+        if (labelTotal) labelTotal.innerText = `R$ ${totalAno.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+    },
+
+    /**
+     * Gera os dados formatados para o Chart.js
+     */
+    getChartData() {
+        // Agrupa totais por dia ou categoria para o gráfico
+        // Exemplo simplificado: Comparativo Entradas vs Saídas do mês atual
+        const totalEntradas = this.sumValues(this.filterByDate(this.state.faturamentos));
+        const totalSaidas = this.sumValues(this.filterByDate(this.state.despesas)) + 
+                            this.sumValues(this.filterByDate(this.state.retiradas));
+
+        return {
+            labels: ['Entradas', 'Saídas'],
+            datasets: [{
+                data: [totalEntradas, totalSaidas],
+                backgroundColor: ['#00ff88', '#ef4444'],
+                borderWidth: 0
+            }]
+        };
+    },
+
+    /**
+     * Altera o mês de visualização
+     */
+    setMonth(m) {
+        this.currentMonth = parseInt(m);
+        UI.updateMonthSelector(this.currentMonth);
+        this.refreshUI();
+    },
+
+    /**
+     * Altera o ano de visualização
+     */
+    setYear(y) {
+        this.currentYear = parseInt(y);
+        this.refreshUI();
     }
 };
 
-/**
- * Extensão de utilitários da UI para animações
- */
-UI.animateValue = function(id, value) {
-    const obj = document.getElementById(id);
-    const start = parseFloat(obj.innerText.replace(/[^\d,-]/g, '').replace(',', '.')) || 0;
-    const duration = 800;
-    let startTime = null;
-
-    function step(timestamp) {
-        if (!startTime) startTime = timestamp;
-        const progress = Math.min((timestamp - startTime) / duration, 1);
-        const current = progress * (value - start) + start;
-        obj.innerText = UI.formatBRL(current);
-        if (progress < 1) {
-            window.requestAnimationFrame(step);
-        }
-    }
-    window.requestAnimationFrame(step);
-};
-
-// Nota: O arranque do App.init() é feito dentro do Auth.js através do onAuthStateChanged.
+// Exporta para uso global nos eventos de clique do HTML
+window.App = App;
