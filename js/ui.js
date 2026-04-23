@@ -1,192 +1,256 @@
+/**
+ * Módulo de Interface (UI) Vitrine Pro
+ * Gere a visualização, gráficos, modais e compressão de imagens.
+ */
+
 const UI = {
-    activeTab: 'resumo',
-    selectedMonth: null,
-    selectedYear: new Date().getFullYear(),
+    chart: null,
     activeModalType: 'faturamentos',
-    chartObj: null,
     compressedBlob: null,
 
-    // Alternar entre abas (Resumo, Vendas, Gastos, Lucro)
+    /**
+     * Alterna entre as abas principais (Resumo, Vendas, Custos, Lucros)
+     */
     switchTab(tab) {
-        this.activeTab = tab;
-        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-        document.getElementById(`btn-tab-${tab}`).classList.add('active');
+        App.currentTab = tab;
         
-        document.getElementById('section-resumo').classList.toggle('hidden', tab !== 'resumo');
-        document.getElementById('section-listagem').classList.toggle('hidden', tab === 'resumo');
-        
+        // Atualiza botões da navegação
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        const activeBtn = document.getElementById(`btn-tab-${tab}`);
+        if (activeBtn) activeBtn.classList.add('active');
+
+        // Alterna visibilidade das secções
+        const sectionResumo = document.getElementById('section-resumo');
+        const sectionListagem = document.getElementById('section-listagem');
+
+        if (tab === 'resumo') {
+            sectionResumo.classList.remove('hidden');
+            sectionListagem.classList.add('hidden');
+        } else {
+            sectionResumo.classList.add('hidden');
+            sectionListagem.classList.remove('hidden');
+        }
+
         App.refreshUI();
     },
 
-    // Renderizar o seletor de meses
-    renderMonthSelector() {
-        const meses = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-        const container = document.getElementById('month-selector');
-        
-        let html = `<div class="month-pill ${this.selectedMonth === null ? 'active' : ''}" onclick="UI.filterByMonth(null)">Todos</div>`;
-        
-        html += meses.map((m, i) => `
-            <div class="month-pill ${this.selectedMonth === i ? 'active' : ''}" onclick="UI.filterByMonth(${i})">
+    /**
+     * Inicializa os seletores de mês e ano
+     */
+    initDateFilters() {
+        const monthContainer = document.getElementById('month-selector');
+        const yearSelect = document.getElementById('year-filter');
+        const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+        // Renderiza meses
+        monthContainer.innerHTML = months.map((m, i) => `
+            <button onclick="App.setMonth(${i})" 
+                    class="month-pill px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border 
+                    ${App.currentMonth === i ? 'bg-[#00ff88] text-black border-[#00ff88]' : 'bg-white/5 text-slate-500 border-white/5'}">
                 ${m}
-            </div>
+            </button>
         `).join('');
-        
-        container.innerHTML = html;
+
+        // Renderiza anos (atual e anterior)
+        const currentYear = new Date().getFullYear();
+        yearSelect.innerHTML = `
+            <option value="${currentYear}">${currentYear}</option>
+            <option value="${currentYear - 1}">${currentYear - 1}</option>
+        `;
+        yearSelect.value = App.currentYear;
     },
 
-    filterByMonth(m) { 
-        this.selectedMonth = m; 
-        this.renderMonthSelector(); 
-        App.refreshUI(); 
-    },
-
-    filterByYear(y) { 
-        this.selectedYear = parseInt(y); 
-        App.refreshUI(); 
-    },
-
-    // Formatação de Moeda
-    formatBRL(v) { 
-        return v.toLocaleString('pt-br', { style: 'currency', currency: 'BRL' }); 
-    },
-
-    // Exibir notificações (Toast)
-    showToast(msg) {
-        const t = document.getElementById('toast');
-        t.innerText = msg;
-        t.style.display = 'block';
-        setTimeout(() => t.style.display = 'none', 2500);
-    },
-
-    // Renderizar Gráfico
-    renderChart(f, d, r) {
-        const ctx = document.getElementById('chartResumo').getContext('2d');
-        if(this.chartObj) this.chartObj.destroy();
-        
-        this.chartObj = new Chart(ctx, {
-            type: 'doughnut',
-            data: { 
-                labels: ['Vendas', 'Gastos', 'Lucro'], 
-                datasets: [{ 
-                    data: [f, d, r], 
-                    backgroundColor: ['#00ff88', '#ef4444', '#a855f7'], 
-                    borderWidth: 0, 
-                    cutout: '80%',
-                    borderRadius: 10
-                }] 
-            },
-            options: { 
-                responsive: true, 
-                maintainAspectRatio: false, 
-                plugins: { 
-                    legend: { 
-                        display: true, 
-                        position: 'bottom', 
-                        labels: { color: '#94a3b8', boxWidth: 10, font: { size: 10, weight: 'bold' } } 
-                    } 
-                } 
+    /**
+     * Atualiza o visual do seletor de meses
+     */
+    updateMonthSelector(activeIdx) {
+        const buttons = document.querySelectorAll('.month-pill');
+        buttons.forEach((btn, i) => {
+            if (i === activeIdx) {
+                btn.classList.add('bg-[#00ff88]', 'text-black', 'border-[#00ff88]');
+                btn.classList.remove('bg-white/5', 'text-slate-500', 'border-white/5');
+            } else {
+                btn.classList.remove('bg-[#00ff88]', 'text-black', 'border-[#00ff88]');
+                btn.classList.add('bg-white/5', 'text-slate-500', 'border-white/5');
             }
         });
     },
 
-    // Renderizar Lista de Itens (Vendas/Gastos/Lucro)
-    renderItemsList(data) {
-        const list = document.getElementById('items-list');
-        list.innerHTML = data.length === 0 ? 
-            `<div class="py-20 text-center opacity-20 text-[10px] font-black italic">Vazio no período</div>` : '';
-        
-        data.forEach(item => {
-            let color = 'text-green-400', icon = 'ph-arrow-up-right';
-            if(item.type === 'despesas') { color = 'text-red-400'; icon = 'ph-arrow-down-left'; }
-            if(item.type === 'retiradas') { color = 'text-purple-400'; icon = 'ph-hand-coins'; }
+    /**
+     * Atualiza ou cria o gráfico de fluxo de caixa
+     */
+    updateChart(data) {
+        const ctx = document.getElementById('chartResumo');
+        if (!ctx) return;
 
-            const div = document.createElement('div');
-            div.className = `card p-4 mb-3 flex items-center justify-between border-slate-800/40 active:scale-[0.98] transition-all`;
-            
-            div.onclick = (e) => {
-                if(e.target.closest('button')) return;
-                item.comprovanteUrl ? this.openViewer(item) : this.openEditModal(item);
-            };
+        if (this.chart) {
+            this.chart.data = data;
+            this.chart.update();
+        } else {
+            this.chart = new Chart(ctx, {
+                type: 'doughnut',
+                data: data,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '75%',
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { color: '#94a3b8', font: { size: 10, weight: 'bold' }, padding: 20 }
+                        }
+                    }
+                }
+            });
+        }
+    },
 
-            div.innerHTML = `
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-xl flex items-center justify-center bg-slate-800 ${color} shadow-lg shadow-black/20">
-                        <i class="ph-bold ${icon} text-lg"></i>
-                    </div>
-                    <div>
-                        <h4 class="text-[12px] font-bold text-white mb-0.5">${item.descricao}</h4>
-                        <p class="text-[8px] text-slate-500 font-bold uppercase">${item.data.split('-').reverse().join('/')}</p>
-                    </div>
-                </div>
-                <div class="flex items-center">
-                    <span class="text-sm font-black mr-3 ${color}">${this.formatBRL(item.valor)}</span>
-                    ${item.comprovanteUrl ? `<i class="ph-bold ph-paperclip text-[#00ff88] mr-3"></i>` : ''}
-                    <button onclick="event.stopPropagation(); Database.deleteItem('${item.type}','${item.id}','${item.comprovanteUrl}')" class="p-2 text-slate-700 hover:text-red-500">
-                        <i class="ph-bold ph-trash"></i>
-                    </button>
+    /**
+     * Renderiza a lista de itens (Vendas, Despesas ou Retiradas)
+     */
+    renderList(items, type) {
+        const container = document.getElementById('items-list');
+        if (!items || items.length === 0) {
+            container.innerHTML = `
+                <div class="p-10 text-center space-y-4">
+                    <i class="ph ph-folder-open text-4xl text-slate-700"></i>
+                    <p class="text-xs text-slate-500 font-bold uppercase tracking-widest">Nenhum registo encontrado</p>
                 </div>
             `;
-            list.appendChild(div);
-        });
-    },
-
-    // Modais e Imagens
-    openModal() { document.getElementById('modal-entry').classList.remove('hidden'); },
-    
-    closeModal() { 
-        document.getElementById('modal-entry').classList.add('hidden'); 
-        document.getElementById('entry-form').reset();
-        document.getElementById('edit-id').value = "";
-        document.getElementById('preview-img').style.display = 'none';
-        this.compressedBlob = null;
-    },
-
-    openViewer(item) {
-        document.getElementById('view-full-img').src = item.comprovanteUrl;
-        document.getElementById('image-viewer').classList.remove('hidden');
-    },
-
-    closeViewer() { document.getElementById('image-viewer').classList.add('hidden'); },
-
-    setEntryType(t) {
-        this.activeModalType = t;
-        const map = {faturamentos: 'f', despesas: 'd', retiradas: 'r'};
-        ['f', 'd', 'r'].forEach(k => {
-            const btn = document.getElementById(`btn-type-${k}`);
-            btn.className = `flex-1 py-2 rounded-lg text-[9px] font-black transition-all ${map[t] === k ? 'bg-[#00ff88] text-black' : 'text-slate-400 bg-slate-900/50'}`;
-        });
-    },
-
-    processImage(input) {
-        const file = input.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const img = new Image();
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                const MAX = 1000;
-                let w = img.width, h = img.height;
-                if(w > MAX) { h *= MAX/w; w = MAX; }
-                canvas.width = w; canvas.height = h;
-                canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-                document.getElementById('preview-img').src = canvas.toDataURL('image/jpeg', 0.8);
-                document.getElementById('preview-img').style.display = 'block';
-                canvas.toBlob(b => this.compressedBlob = b, 'image/jpeg', 0.8);
-            };
-            img.src = e.target.result;
-        };
-        reader.readAsDataURL(file);
-    },
-
-    exportData() {
-        const s = document.getElementById('saldo-disponivel').innerText;
-        const texto = `📊 *RESUMO FINANCEIRO*\n💰 Saldo em Caixa: ${s}\n\n_Gerado por Vitrine Pro_`;
-        if (navigator.share) {
-            navigator.share({ title: 'Resumo Financeiro', text: texto });
-        } else {
-            navigator.clipboard.writeText(texto);
-            this.showToast("Copiado para área de transferência!");
+            return;
         }
+
+        container.innerHTML = items.map(item => {
+            const date = new Date(item.data).toLocaleDateString('pt-PT');
+            const valor = Number(item.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+            
+            return `
+                <div class="glass p-5 rounded-2xl flex justify-between items-center group animate-in fade-in slide-in-from-bottom-2">
+                    <div class="flex items-center gap-4">
+                        <div class="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-white/5">
+                            <i class="ph-bold ${this.getIconForType(type)} text-lg text-slate-400"></i>
+                        </div>
+                        <div>
+                            <h4 class="text-xs font-bold text-white uppercase">${item.descricao}</h4>
+                            <p class="text-[9px] text-slate-500 font-bold uppercase">${date}</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <div class="text-right">
+                            <p class="text-xs font-black ${this.getColorForType(type)}">R$ ${valor}</p>
+                            ${item.comprovanteUrl ? `<button onclick="window.open('${item.comprovanteUrl}')" class="text-[8px] font-black text-blue-400 uppercase tracking-tighter">Ver Anexo</button>` : ''}
+                        </div>
+                        <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onclick="UI.editItem('${type}', '${item.id}')" class="p-2 text-slate-400 hover:text-[#00ff88]"><i class="ph ph-pencil-simple"></i></button>
+                            <button onclick="Database.deleteItem('${type}', '${item.id}', '${item.comprovanteUrl || ''}')" class="p-2 text-slate-400 hover:text-red-500"><i class="ph ph-trash"></i></button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    },
+
+    getIconForType(type) {
+        const icons = { faturamentos: 'ph-receipt', despesas: 'ph-shopping-cart', retiradas: 'ph-hand-coins' };
+        return icons[type] || 'ph-dots-three';
+    },
+
+    getColorForType(type) {
+        const colors = { faturamentos: 'text-[#00ff88]', despesas: 'text-red-500', retiradas: 'text-purple-400' };
+        return colors[type] || 'text-white';
+    },
+
+    /**
+     * Animação suave para números nos cards
+     */
+    animateValue(id, value) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const formatted = `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+        el.innerText = formatted;
+    },
+
+    /**
+     * Gestão de Modais
+     */
+    openModal(editData = null) {
+        const modal = document.getElementById('modal-entry');
+        const form = document.getElementById('entry-form');
+        form.reset();
+        document.getElementById('edit-id').value = '';
+        this.compressedBlob = null;
+
+        if (editData) {
+            document.getElementById('modal-title').innerText = "Editar Registo";
+            document.getElementById('edit-id').value = editData.id;
+            document.getElementById('inp-desc').value = editData.descricao;
+            document.getElementById('inp-valor').value = editData.valor;
+            document.getElementById('inp-data').value = editData.data;
+            this.setEntryType(editData.type);
+        } else {
+            document.getElementById('modal-title').innerText = "Lançar Operação";
+            const currentTabType = App.currentTab === 'resumo' ? 'faturamentos' : App.currentTab;
+            this.setEntryType(currentTabType);
+            document.getElementById('inp-data').value = new Date().toISOString().split('T')[0];
+        }
+
+        modal.classList.remove('hidden');
+    },
+
+    closeModal() {
+        document.getElementById('modal-entry').classList.add('hidden');
+    },
+
+    setEntryType(type) {
+        this.activeModalType = type;
+        const btns = { f: 'btn-type-f', d: 'btn-type-d', r: 'btn-type-r' };
+        Object.values(btns).forEach(id => {
+            const b = document.getElementById(id);
+            b.classList.remove('bg-[#00ff88]', 'text-black', 'bg-white/5', 'text-slate-500');
+        });
+
+        const activeId = btns[type.charAt(0)];
+        const activeBtn = document.getElementById(activeId);
+        activeBtn.classList.add('bg-[#00ff88]', 'text-black');
+    },
+
+    /**
+     * Prepara a edição de um item
+     */
+    editItem(type, id) {
+        const item = App.state[type].find(i => i.id === id);
+        if (item) this.openModal(item);
+    },
+
+    /**
+     * Mostra mensagens temporárias (Toast)
+     */
+    showToast(msg) {
+        const t = document.getElementById('toast');
+        t.innerText = msg;
+        t.style.display = 'block';
+        setTimeout(() => { t.style.display = 'none'; }, 3000);
+    },
+
+    /**
+     * Exportação simples de dados (CSV)
+     */
+    exportData() {
+        const allData = [...App.state.faturamentos, ...App.state.despesas, ...App.state.retiradas];
+        if (allData.length === 0) return this.showToast("Sem dados para exportar.");
+
+        let csv = "Tipo;Data;Descricao;Valor\n";
+        allData.forEach(i => {
+            csv += `${i.type};${i.data};${i.descricao};${i.valor}\n`;
+        });
+
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `VitrinePro_Export_${App.currentMonth + 1}_${App.currentYear}.csv`;
+        a.click();
     }
 };
+
+window.UI = UI;
