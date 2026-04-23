@@ -10,18 +10,15 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#020617">
     
-    <title>Vitrine Pro - Gestão Elite</title>
+    <title>Controle MEI - Gestão Inteligente</title>
     
-    <link rel="stylesheet" href="css/style.css">
+    <!-- Bibliotecas Externas -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
-    <!-- Firebase SDKs -->
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
 
     <style>
         :root {
@@ -35,6 +32,7 @@
             color: #f1f5f9;
             font-family: 'Inter', system-ui, -apple-system, sans-serif;
             -webkit-font-smoothing: antialiased;
+            overflow-x: hidden;
         }
 
         .glass {
@@ -53,12 +51,14 @@
             background: rgba(30, 41, 59, 0.5) !important;
             border: 1px solid rgba(255, 255, 255, 0.1) !important;
             transition: all 0.3s ease;
+            color: white !important;
         }
 
         input:focus {
             border-color: var(--brand-green) !important;
             background: rgba(30, 41, 59, 0.8) !important;
             box-shadow: 0 0 0 4px rgba(0, 255, 136, 0.1);
+            outline: none;
         }
 
         .tab-btn {
@@ -112,6 +112,9 @@
             display: none;
             box-shadow: 0 20px 40px rgba(0,0,0,0.5);
         }
+
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body class="pb-32">
@@ -137,18 +140,18 @@
             <div class="space-y-4 text-left">
                 <div class="space-y-1.5">
                     <label class="text-[10px] font-bold text-slate-500 ml-4 uppercase tracking-widest">Identificação</label>
-                    <input type="email" id="login-email" placeholder="E-mail de acesso" class="w-full py-4 px-6 rounded-2xl text-sm focus:outline-none">
+                    <input type="email" id="login-email" placeholder="E-mail de acesso" class="w-full py-4 px-6 rounded-2xl text-sm outline-none">
                 </div>
                 <div class="space-y-1.5">
                     <label class="text-[10px] font-bold text-slate-500 ml-4 uppercase tracking-widest">Código de Segurança</label>
-                    <input type="password" id="login-pass" placeholder="••••••••" class="w-full py-4 px-6 rounded-2xl text-sm focus:outline-none">
+                    <input type="password" id="login-pass" placeholder="••••••••" class="w-full py-4 px-6 rounded-2xl text-sm outline-none">
                 </div>
                 <button id="btn-login" class="btn-glow w-full py-4 bg-[#00ff88] text-black font-black rounded-2xl mt-4 transition-all hover:brightness-110 shadow-lg shadow-[#00ff88]/10">
                     ACESSAR PLATAFORMA
                 </button>
                 <div class="flex items-center justify-center gap-2 pt-4 opacity-40">
                     <i class="ph ph-shield-check"></i>
-                    <p class="text-[9px] font-bold uppercase tracking-tighter">Conexão Criptografada ponta-a-ponta</p>
+                    <p class="text-[9px] font-bold uppercase tracking-tighter">Conexão Criptografada</p>
                 </div>
             </div>
         </div>
@@ -156,7 +159,6 @@
 
     <!-- CONTEÚDO DO APP -->
     <div id="app-content" style="display: none;">
-        <!-- Header minimalista e flutuante -->
         <header class="glass sticky top-0 z-50 border-b border-white/5 pt-safe">
             <div class="p-5 flex justify-between items-center">
                 <div class="flex flex-col">
@@ -165,7 +167,7 @@
                 </div>
                 <div class="flex gap-3">
                     <button onclick="UI.exportData()" class="bg-white/5 p-2.5 rounded-xl text-slate-300 border border-white/5"><i class="ph-bold ph-arrow-square-out"></i></button>
-                    <select id="year-filter" onchange="UI.filterByYear(this.value)" class="!bg-white/5 !border-white/5 !w-auto !py-1 !px-3 !text-[10px] font-black rounded-xl"></select>
+                    <select id="year-filter" onchange="UI.filterByYear(this.value)" class="!bg-white/5 !border-white/5 !w-auto !py-1 !px-3 !text-[10px] font-black rounded-xl text-white"></select>
                     <button onclick="Auth.logout()" class="bg-red-500/10 p-2.5 rounded-xl text-red-500 border border-red-500/10"><i class="ph-bold ph-power"></i></button>
                 </div>
             </div>
@@ -182,10 +184,9 @@
 
         <main class="p-5 max-w-2xl mx-auto space-y-8 mt-4">
             <div id="section-resumo" class="space-y-8">
-                <!-- CARD DE SALDO - DESIGN CONCEITO -->
+                <!-- CARD DE SALDO -->
                 <div class="glass p-8 rounded-[2.5rem] relative overflow-hidden">
                     <div class="absolute top-0 right-0 w-32 h-32 bg-[#00ff88]/10 blur-[60px] rounded-full translate-x-1/2 -translate-y-1/2"></div>
-                    
                     <div class="flex justify-between items-center mb-4 relative z-10">
                         <div class="space-y-1">
                             <p class="text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em]">Liquidez em Conta</p>
@@ -196,7 +197,7 @@
                         </div>
                     </div>
                     
-                    <!-- MONITOR MEI REESTILIZADO -->
+                    <!-- MONITOR MEI -->
                     <div class="mt-8 pt-6 border-t border-white/5 relative z-10">
                         <div class="flex justify-between items-center mb-3">
                             <span class="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Limite MEI (Anual)</span>
@@ -212,7 +213,7 @@
                     </div>
                 </div>
 
-                <!-- CARDS DE METRICAS GRID -->
+                <!-- CARDS DE METRICAS -->
                 <div class="grid grid-cols-3 gap-4">
                     <div class="glass p-4 rounded-2xl border-l-4 border-l-green-500">
                         <p class="text-[8px] text-slate-500 font-bold uppercase mb-2">Entradas</p>
@@ -232,7 +233,6 @@
                 <div class="glass p-6 rounded-[2rem]">
                     <div class="flex justify-between items-center mb-6">
                         <h4 class="text-[10px] font-black uppercase text-slate-400">Fluxo de Caixa Mensal</h4>
-                        <i class="ph ph-dots-three-outline font-bold text-slate-600"></i>
                     </div>
                     <div class="h-[260px]">
                         <canvas id="chartResumo"></canvas>
@@ -245,20 +245,18 @@
             </div>
         </main>
 
-        <!-- Botão Flutuante Estilizado -->
-        <button onclick="UI.openModal()" class="fixed bottom-8 right-8 w-16 h-16 bg-[#00ff88] text-black rounded-2xl shadow-2xl shadow-[#00ff88]/20 flex items-center justify-center text-2xl transition-all active:scale-90 z-[60]">
+        <!-- Botão Flutuante -->
+        <button onclick="UI.openModal()" class="fixed bottom-8 right-8 w-16 h-16 bg-[#00ff88] text-black rounded-2xl shadow-2xl flex items-center justify-center text-2xl z-[60]">
             <i class="ph-bold ph-plus"></i>
         </button>
     </div>
 
-    <!-- MODAL PREMIUM -->
+    <!-- MODAL DE LANÇAMENTO -->
     <div id="modal-entry" class="fixed inset-0 bg-black/60 z-[100] hidden flex items-end sm:items-center justify-center p-4 backdrop-blur-xl">
-        <div class="bg-[#0f172a] w-full max-w-lg rounded-[2.5rem] p-8 space-y-6 border border-white/10 shadow-2xl relative overflow-hidden">
-            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#00ff88] to-transparent opacity-50"></div>
-            
+        <div class="bg-[#0f172a] w-full max-w-lg rounded-[2.5rem] p-8 space-y-6 border border-white/10 shadow-2xl relative">
             <div class="flex justify-between items-center">
                 <h3 id="modal-title" class="text-sm font-black uppercase italic text-[#00ff88] tracking-widest">Lançar Operação</h3>
-                <button onclick="UI.closeModal()" class="w-10 h-10 bg-white/5 rounded-full flex items-center justify-center"><i class="ph-bold ph-x text-slate-400"></i></button>
+                <button onclick="UI.closeModal()" class="w-10 h-10 bg-white/5 rounded-full flex items-center justify-center text-slate-400"><i class="ph-bold ph-x"></i></button>
             </div>
 
             <form id="entry-form" class="space-y-6">
@@ -271,53 +269,54 @@
                 </div>
 
                 <div class="space-y-2">
-                    <label class="text-[10px] font-bold text-slate-500 ml-4 uppercase">Descrição do Item</label>
-                    <input type="text" id="inp-desc" placeholder="Ex: Consultoria Técnica" class="w-full py-4 px-6 rounded-2xl text-sm focus:outline-none" required>
+                    <label class="text-[10px] font-bold text-slate-500 ml-4 uppercase">Descrição</label>
+                    <input type="text" id="inp-desc" placeholder="Ex: Venda de Produto" class="w-full py-4 px-6 rounded-2xl text-sm" required>
                 </div>
 
                 <div class="grid grid-cols-2 gap-4">
                     <div class="space-y-2">
-                        <label class="text-[10px] font-bold text-slate-500 ml-4 uppercase">Montante (R$)</label>
-                        <input type="number" id="inp-valor" step="0.01" placeholder="0,00" class="w-full py-4 px-6 rounded-2xl text-sm focus:outline-none" required>
+                        <label class="text-[10px] font-bold text-slate-500 ml-4 uppercase">Valor (R$)</label>
+                        <input type="number" id="inp-valor" step="0.01" placeholder="0,00" class="w-full py-4 px-6 rounded-2xl text-sm" required>
                     </div>
                     <div class="space-y-2">
                         <label class="text-[10px] font-bold text-slate-500 ml-4 uppercase">Data</label>
-                        <input type="date" id="inp-data" class="w-full py-4 px-6 rounded-2xl text-sm focus:outline-none" required>
+                        <input type="date" id="inp-data" class="w-full py-4 px-6 rounded-2xl text-sm" required>
                     </div>
                 </div>
 
-                <!-- Upload de Comprovante Estilizado -->
-                <label class="flex items-center justify-between p-5 bg-slate-950 border border-white/5 rounded-2xl cursor-pointer group">
-                    <div class="flex items-center gap-4">
-                        <div class="w-12 h-12 rounded-xl bg-[#00ff88]/5 flex items-center justify-center border border-[#00ff88]/10 group-hover:bg-[#00ff88]/10 transition-colors">
-                            <i class="ph-bold ph-image text-xl text-[#00ff88]"></i>
-                        </div>
-                        <div class="flex flex-col">
-                            <span id="file-status" class="text-[10px] font-black text-slate-400 uppercase">Documento Fiscal</span>
-                            <span class="text-[8px] text-slate-600">JPG, PNG até 5MB</span>
-                        </div>
-                    </div>
-                    <img id="preview-img" src="" class="w-12 h-12 rounded-xl object-cover border border-[#00ff88] hidden">
-                    <input type="file" id="inp-file" class="hidden" accept="image/*" onchange="UI.processImage(this)">
-                </label>
-
-                <button type="submit" id="btn-save" class="btn-glow w-full py-5 bg-[#00ff88] text-black font-black rounded-2xl shadow-xl shadow-[#00ff88]/10">
+                <button type="submit" id="btn-save" class="btn-glow w-full py-5 bg-[#00ff88] text-black font-black rounded-2xl shadow-xl">
                     CONFIRMAR LANÇAMENTO
                 </button>
             </form>
         </div>
     </div>
 
-    <!-- VIEWER IMAGEM PREMIUM -->
-    <div id="image-viewer" class="fixed inset-0 bg-black/98 z-[200] hidden flex-col items-center justify-center p-6 backdrop-blur-3xl">
-        <button onclick="UI.closeViewer()" class="absolute top-12 left-8 text-white text-xs font-black uppercase flex items-center gap-3 bg-white/10 px-4 py-2 rounded-full border border-white/10">
-            <i class="ph-bold ph-arrow-left"></i> Voltar
-        </button>
-        <div class="relative w-full max-w-3xl">
-            <img id="view-full-img" src="" class="w-full h-auto rounded-3xl shadow-2xl border border-white/5">
-        </div>
-    </div>
+    <!-- SDKs FIREBASE COMPAT -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
 
+    <!-- INICIALIZAÇÃO FIREBASE -->
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyBI7Zecb-2tn3zUAAhiO5UmtTGcAALUiKg",
+            authDomain: "vitrine-913c6.firebaseapp.com",
+            databaseURL: "https://vitrine-913c6-default-rtdb.firebaseio.com",
+            projectId: "vitrine-913c6",
+            storageBucket: "vitrine-913c6.firebasestorage.app",
+            messagingSenderId: "1088927815489",
+            appId: "1:1088927815489:web:61d745609fbf4c8b9e73c0",
+            measurementId: "G-ZLNVWY16CJ"
+        };
+
+        // Inicializa o Firebase se ainda não estiver inicializado
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+    </script>
+
+    <!-- SCRIPTS DE LOGICA -->
     <script src="js/ui.js"></script>
     <script src="js/database.js"></script>
     <script src="js/auth.js"></script>
