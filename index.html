@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     
+    <!-- Meta tags para PWA e Mobile -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Vitrine Pro">
@@ -149,10 +150,6 @@
                 <button id="btn-login" class="btn-glow w-full py-4 bg-[#00ff88] text-black font-black rounded-2xl mt-4 transition-all hover:brightness-110 shadow-lg shadow-[#00ff88]/10">
                     ACESSAR PLATAFORMA
                 </button>
-                <div class="flex items-center justify-center gap-2 pt-4 opacity-40">
-                    <i class="ph ph-shield-check"></i>
-                    <p class="text-[9px] font-bold uppercase tracking-tighter">Conexão Criptografada</p>
-                </div>
             </div>
         </div>
     </div>
@@ -163,7 +160,7 @@
             <div class="p-5 flex justify-between items-center">
                 <div class="flex flex-col">
                     <h1 class="text-lg font-black italic text-[#00ff88]">VITRINE <span class="text-white">PRO</span></h1>
-                    <span class="text-[8px] text-slate-500 font-bold uppercase">Dashboard Elite</span>
+                    <span class="text-[8px] text-slate-500 font-bold uppercase tracking-widest">Dashboard Elite</span>
                 </div>
                 <div class="flex gap-3">
                     <button onclick="UI.exportData()" class="bg-white/5 p-2.5 rounded-xl text-slate-300 border border-white/5"><i class="ph-bold ph-arrow-square-out"></i></button>
@@ -208,7 +205,7 @@
                         </div>
                         <div class="flex justify-between mt-2">
                             <p id="mei-total-val" class="text-[11px] font-black text-slate-200">R$ 0,00</p>
-                            <p class="text-[9px] font-bold text-slate-600">Limite R$ 81k</p>
+                            <p class="text-[9px] font-bold text-slate-600 uppercase">Teto R$ 81k</p>
                         </div>
                     </div>
                 </div>
@@ -232,7 +229,7 @@
                 <!-- GRÁFICO -->
                 <div class="glass p-6 rounded-[2rem]">
                     <div class="flex justify-between items-center mb-6">
-                        <h4 class="text-[10px] font-black uppercase text-slate-400">Fluxo de Caixa Mensal</h4>
+                        <h4 class="text-[10px] font-black uppercase text-slate-400 tracking-widest">Fluxo de Caixa Mensal</h4>
                     </div>
                     <div class="h-[260px]">
                         <canvas id="chartResumo"></canvas>
@@ -246,31 +243,32 @@
         </main>
 
         <!-- Botão Flutuante -->
-        <button onclick="UI.openModal()" class="fixed bottom-8 right-8 w-16 h-16 bg-[#00ff88] text-black rounded-2xl shadow-2xl flex items-center justify-center text-2xl z-[60]">
+        <button onclick="UI.openModal()" class="fixed bottom-8 right-8 w-16 h-16 bg-[#00ff88] text-black rounded-2xl shadow-2xl flex items-center justify-center text-2xl z-[60] active:scale-95 transition-transform">
             <i class="ph-bold ph-plus"></i>
         </button>
     </div>
 
     <!-- MODAL DE LANÇAMENTO -->
-    <div id="modal-entry" class="fixed inset-0 bg-black/60 z-[100] hidden flex items-end sm:items-center justify-center p-4 backdrop-blur-xl">
+    <div id="modal-entry" class="fixed inset-0 bg-black/80 z-[100] hidden flex items-end sm:items-center justify-center p-4 backdrop-blur-md">
         <div class="bg-[#0f172a] w-full max-w-lg rounded-[2.5rem] p-8 space-y-6 border border-white/10 shadow-2xl relative">
             <div class="flex justify-between items-center">
-                <h3 id="modal-title" class="text-sm font-black uppercase italic text-[#00ff88] tracking-widest">Lançar Operação</h3>
+                <h3 id="modal-title" class="text-sm font-black uppercase italic text-[#00ff88] tracking-widest">Novo Lançamento</h3>
                 <button onclick="UI.closeModal()" class="w-10 h-10 bg-white/5 rounded-full flex items-center justify-center text-slate-400"><i class="ph-bold ph-x"></i></button>
             </div>
 
-            <form id="entry-form" class="space-y-6">
+            <!-- FORMULÁRIO COM ONSUBMIT CORRIGIDO -->
+            <form id="entry-form" class="space-y-6" onsubmit="return handleFormSubmit(event)">
                 <input type="hidden" id="edit-id">
                 
                 <div id="type-selector-container" class="flex p-1.5 bg-slate-950 rounded-2xl border border-white/5">
-                    <button type="button" onclick="UI.setEntryType('faturamentos')" id="btn-type-f" class="flex-1 py-3 rounded-xl text-[9px] font-black transition-all">FATURAMENTO</button>
-                    <button type="button" onclick="UI.setEntryType('despesas')" id="btn-type-d" class="flex-1 py-3 rounded-xl text-[9px] font-black transition-all">DESPESA</button>
-                    <button type="button" onclick="UI.setEntryType('retiradas')" id="btn-type-r" class="flex-1 py-3 rounded-xl text-[9px] font-black transition-all">RETIRADA</button>
+                    <button type="button" onclick="UI.setEntryType('faturamentos')" id="btn-type-f" class="flex-1 py-3 rounded-xl text-[9px] font-black transition-all">VENDA</button>
+                    <button type="button" onclick="UI.setEntryType('despesas')" id="btn-type-d" class="flex-1 py-3 rounded-xl text-[9px] font-black transition-all">CUSTO</button>
+                    <button type="button" onclick="UI.setEntryType('retiradas')" id="btn-type-r" class="flex-1 py-3 rounded-xl text-[9px] font-black transition-all">LUCRO</button>
                 </div>
 
                 <div class="space-y-2">
-                    <label class="text-[10px] font-bold text-slate-500 ml-4 uppercase">Descrição</label>
-                    <input type="text" id="inp-desc" placeholder="Ex: Venda de Produto" class="w-full py-4 px-6 rounded-2xl text-sm" required>
+                    <label class="text-[10px] font-bold text-slate-500 ml-4 uppercase">O que foi lançado?</label>
+                    <input type="text" id="inp-desc" placeholder="Ex: Revenda de iPhones" class="w-full py-4 px-6 rounded-2xl text-sm" required>
                 </div>
 
                 <div class="grid grid-cols-2 gap-4">
@@ -284,8 +282,8 @@
                     </div>
                 </div>
 
-                <button type="submit" id="btn-save" class="btn-glow w-full py-5 bg-[#00ff88] text-black font-black rounded-2xl shadow-xl">
-                    CONFIRMAR LANÇAMENTO
+                <button type="submit" id="btn-save" class="btn-glow w-full py-5 bg-[#00ff88] text-black font-black rounded-2xl shadow-xl transition-all">
+                    CONFIRMAR OPERAÇÃO
                 </button>
             </form>
         </div>
@@ -295,31 +293,26 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
 
     <!-- INICIALIZAÇÃO FIREBASE -->
     <script>
         const firebaseConfig = {
             apiKey: "AIzaSyBI7Zecb-2tn3zUAAhiO5UmtTGcAALUiKg",
             authDomain: "vitrine-913c6.firebaseapp.com",
-            databaseURL: "https://vitrine-913c6-default-rtdb.firebaseio.com",
             projectId: "vitrine-913c6",
             storageBucket: "vitrine-913c6.firebasestorage.app",
             messagingSenderId: "1088927815489",
-            appId: "1:1088927815489:web:61d745609fbf4c8b9e73c0",
-            measurementId: "G-ZLNVWY16CJ"
+            appId: "1:1088927815489:web:61d745609fbf4c8b9e73c0"
         };
-
-        // Inicializa o Firebase se ainda não estiver inicializado
-        if (!firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
-        }
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     </script>
 
-    <!-- SCRIPTS DE LOGICA -->
+    <!-- Scripts da Aplicação -->
     <script src="js/ui.js"></script>
     <script src="js/database.js"></script>
     <script src="js/auth.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>
+
+```
