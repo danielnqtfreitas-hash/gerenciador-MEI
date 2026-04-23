@@ -1,6 +1,19 @@
+/**
+ * Módulo de Banco de Dados Vitrine Pro
+ * Responsável pelas operações de CRUD no Firestore e Storage.
+ */
+
 const Database = {
-    // Escuta os dados em tempo real filtrando por usuário
+    /**
+     * Subscreve aos dados em tempo real filtrando pelo ID do utilizador.
+     * @param {string} collection - Nome da coleção (faturamentos, despesas, retiradas)
+     * @param {string} userId - ID do utilizador logado
+     * @param {function} callback - Função a executar quando os dados mudarem
+     */
     subscribe(collection, userId, callback) {
+        if (!userId) return;
+
+        // Ordena por data decrescente para mostrar os mais recentes primeiro
         return firebase.firestore().collection(collection)
             .where("userId", "==", userId)
             .orderBy('data', 'desc')
@@ -13,32 +26,48 @@ const Database = {
                 callback(docs);
             }, error => {
                 console.error(`Erro ao assinar ${collection}:`, error);
+                // DICA: Se aparecer erro de índice no console, clique no link gerado pelo Firebase
             });
     },
 
-    // Salva ou Atualiza um registro
+    /**
+     * Guarda ou Atualiza um registo, incluindo upload opcional de comprovativo.
+     * @param {string} collection - Coleção de destino
+     * @param {object} data - Dados do formulário
+     * @param {string} userId - ID do utilizador
+     * @param {Blob} blob - Imagem comprimida (opcional)
+     */
     async saveItem(collection, data, userId, blob = null) {
+        if (!userId) throw new Error("Utilizador não identificado.");
+
         let url = data.comprovanteUrl || "";
 
-        // Se houver uma nova imagem (blob), faz o upload
+        // Se houver uma nova imagem, faz o upload para o Storage
         if (blob) {
-            UI.showToast("Subindo comprovante...");
-            const ref = firebase.storage().ref().child(`comprovantes/${userId}/${Date.now()}.jpg`);
-            const task = await ref.put(blob);
-            url = await task.ref.getDownloadURL();
+            try {
+                UI.showToast("A enviar comprovativo...");
+                const fileName = `proof_${Date.now()}.jpg`;
+                const ref = firebase.storage().ref().child(`comprovantes/${userId}/${fileName}`);
+                const task = await ref.put(blob);
+                url = await task.ref.getDownloadURL();
+            } catch (storageError) {
+                console.error("Erro no Storage:", storageError);
+                UI.showToast("Erro ao guardar imagem. A salvar apenas dados.");
+            }
         }
 
         const payload = {
-            ...data,
-            userId,
+            descricao: data.descricao,
+            data: data.data,
+            userId: userId,
             comprovanteUrl: url,
             valor: parseFloat(data.valor),
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         };
 
-        if (data.id) {
+        // Verifica se é edição (tem ID) ou novo registo
+        if (data.id && data.id.trim() !== "") {
             const id = data.id;
-            delete payload.id;
             return firebase.firestore().collection(collection).doc(id).update(payload);
         } else {
             payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
@@ -46,50 +75,79 @@ const Database = {
         }
     },
 
-    // Deleta um registro e sua imagem se existir
+    /**
+     * Remove um registo do Firestore e o seu ficheiro do Storage.
+     * @param {string} collection - Coleção de destino
+     * @param {string} id - ID do documento
+     * @param {string} imageUrl - URL da imagem para remover do Storage
+     */
     async deleteItem(collection, id, imageUrl) {
-        if (!confirm("Tem certeza que deseja excluir?")) return;
+        // Confirmação nativa (pode ser substituída por modal UI)
+        if (!confirm("Tem a certeza que deseja eliminar este registo?")) return;
 
         try {
-            if (imageUrl && imageUrl.includes("firebase")) {
+            // Remove a imagem do Storage se existir
+            if (imageUrl && imageUrl.includes("firebasestorage")) {
                 try {
                     await firebase.storage().refFromURL(imageUrl).delete();
                 } catch (e) {
-                    console.warn("Imagem não encontrada no storage ou já removida.");
+                    console.warn("Ficheiro de imagem não encontrado ou já removido.");
                 }
             }
+            
+            // Remove o documento do Firestore
             await firebase.firestore().collection(collection).doc(id).delete();
-            UI.showToast("Excluído com sucesso!");
+            UI.showToast("Registo eliminado com sucesso!");
         } catch (error) {
-            UI.showToast("Erro ao excluir.");
+            UI.showToast("Erro ao eliminar registo.");
             console.error(error);
         }
     }
 };
 
-// Listener do formulário (conecta a UI ao Database)
-document.getElementById('entry-form').onsubmit = async (e) => {
-    e.preventDefault();
-    const btn = document.getElementById('btn-save');
-    btn.disabled = true;
-    btn.innerText = "SALVANDO...";
+/**
+ * Listener do formulário de lançamento.
+ * Intercepta o envio do formulário e utiliza o objeto Database para persistir.
+ */
+document.addEventListener('DOMContentLoaded', () => {
+    const form = document.getElementById('entry-form');
+    if (form) {
+        form.onsubmit = async (e) => {
+            e.preventDefault();
+            
+            const btn = document.getElementById('btn-save');
+            const originalText = btn.innerText;
+            
+            // Evita submissões duplas
+            btn.disabled = true;
+            btn.innerText = "A GUARDAR...";
 
-    const data = {
-        id: document.getElementById('edit-id').value,
-        descricao: document.getElementById('inp-desc').value,
-        valor: document.getElementById('inp-valor').value,
-        data: document.getElementById('inp-data').value,
-    };
+            const data = {
+                id: document.getElementById('edit-id').value,
+                descricao: document.getElementById('inp-desc').value,
+                valor: document.getElementById('inp-valor').value,
+                data: document.getElementById('inp-data').value,
+            };
 
-    try {
-        await Database.saveItem(UI.activeModalType, data, App.user.uid, UI.compressedBlob);
-        UI.showToast("Salvo com sucesso!");
-        UI.closeModal();
-    } catch (error) {
-        UI.showToast("Erro ao salvar.");
-        console.error(error);
-    } finally {
-        btn.disabled = false;
-        btn.innerText = "SALVAR LANÇAMENTO";
+            try {
+                // UI.activeModalType e UI.compressedBlob devem ser geridos pelo módulo ui.js
+                const type = UI.activeModalType || 'faturamentos';
+                const blob = UI.compressedBlob || null;
+
+                await Database.saveItem(type, data, App.userId, blob);
+                
+                UI.showToast("Dados guardados!");
+                UI.closeModal();
+            } catch (error) {
+                UI.showToast("Erro ao ligar ao servidor.");
+                console.error(error);
+            } finally {
+                btn.disabled = false;
+                btn.innerText = originalText;
+            }
+        };
     }
-};
+});
+
+// Torna o Database disponível globalmente
+window.Database = Database;
