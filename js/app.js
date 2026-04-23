@@ -5,35 +5,39 @@
 
 const App = {
     userId: null,
-    currentMonth: 'todos', // Define "Todos" como padrão inicial
+    // Estado inicial: visualização anual ("todos") e ano atual
+    currentMonth: 'todos', 
     currentYear: new Date().getFullYear(),
     currentTab: 'resumo',
     
-    // Estado global dos dados
+    // Estado global dos dados (armazenados localmente após virem do Firebase)
     state: {
         faturamentos: [],
         despesas: [],
         retiradas: []
     },
 
+    // Referência para o objeto de dados (para compatibilidade com funções de edição)
+    data: {
+        faturamentos: [],
+        despesas: [],
+        retiradas: []
+    },
+
     /**
-     * Inicializa a aplicação após o login
+     * Inicializa a aplicação após o login do Firebase
      * @param {string} uid - ID do utilizador vindo do Firebase Auth
      */
     init(uid) {
         this.userId = uid;
         console.log("App Inicializada para o utilizador:", uid);
 
-        // Ajuste de compatibilidade para inicialização da UI
-        if (typeof UI !== 'undefined') {
-            if (typeof UI.init === 'function') {
-                UI.init();
-            } else if (typeof UI.initDateFilters === 'function') {
-                UI.initDateFilters();
-            }
+        // Inicializa os filtros de data na UI
+        if (window.UI && window.UI.init) {
+            UI.init();
         }
         
-        // Inicia a escuta em tempo real do banco de dados
+        // Inicia a escuta em tempo real do banco de dados para as 3 coleções
         this.startDataListeners();
     },
 
@@ -44,9 +48,11 @@ const App = {
         const collections = ['faturamentos', 'despesas', 'retiradas'];
         
         collections.forEach(colName => {
-            // Database.subscribe deve estar definido em js/database.js
+            // Database.subscribe utiliza onSnapshot do Firebase
             Database.subscribe(colName, this.userId, (data) => {
+                // Atualizamos tanto o estado quanto a referência 'data' para compatibilidade
                 this.state[colName] = data;
+                this.data[colName] = data;
                 this.refreshUI();
             });
         });
@@ -56,74 +62,78 @@ const App = {
      * Filtra e processa os dados para atualizar todos os componentes da UI
      */
     refreshUI() {
-        // 1. Filtrar dados pelo mês e ano selecionados
+        // 1. Filtrar dados pelo período selecionado (Mês específico ou "Todos")
         const filteredData = {
             faturamentos: this.filterByDate(this.state.faturamentos),
             despesas: this.filterByDate(this.state.despesas),
             retiradas: this.filterByDate(this.state.retiradas)
         };
 
-        // 2. Calcular Totais do Período (Mês selecionado ou Ano inteiro se for 'todos')
+        // 2. Calcular Totais do Período Filtrado
         const totalF = this.sumValues(filteredData.faturamentos);
         const totalD = this.sumValues(filteredData.despesas);
         const totalR = this.sumValues(filteredData.retiradas);
-        const saldoPeriodo = totalF - totalD - totalR;
+        const saldoMensal = totalF - totalD - totalR;
 
-        // 3. Atualizar Cards de Resumo na UI
-        if (typeof UI !== 'undefined') {
-            if (UI.animateValue) {
-                UI.animateValue('total-f', totalF);
-                UI.animateValue('total-d', totalD);
-                UI.animateValue('total-r', totalR);
-                UI.animateValue('saldo-disponivel', saldoPeriodo);
-            } else if (typeof UI.setCurrencyValue === 'function') {
-                UI.setCurrencyValue('total-f', totalF);
-                UI.setCurrencyValue('total-d', totalD);
-                UI.setCurrencyValue('total-r', totalR);
-                UI.setCurrencyValue('saldo-disponivel', saldoPeriodo);
-            } else {
-                this.updateElementCurrency('total-f', totalF);
-                this.updateElementCurrency('total-d', totalD);
-                this.updateElementCurrency('total-r', totalR);
-                this.updateElementCurrency('saldo-disponivel', saldoPeriodo);
-            }
-        }
+        // 3. Atualizar Cards de Resumo com animação ou atualização direta
+        this.updateCardValue('total-f', totalF);
+        this.updateCardValue('total-d', totalD);
+        this.updateCardValue('total-r', totalR);
+        this.updateCardValue('saldo-disponivel', saldoMensal);
 
-        // 4. Calcular Limite MEI (Sempre baseado no Ano Inteiro)
+        // 4. Calcular Limite MEI (Baseado sempre no ANO INTEIRO)
         this.updateMeiStatus();
 
-        // 5. Atualizar Gráfico ou Lista
+        // 5. Atualizar Gráfico ou Lista de acordo com a aba ativa
         if (this.currentTab === 'resumo') {
-            const chartData = this.getChartData(totalF, totalD, totalR);
-            if (typeof UI !== 'undefined' && UI.updateChart) {
-                // Suporte para dois tipos de chamada de gráfico conforme a versão do UI
-                if (UI.updateChart.length === 3) {
-                    UI.updateChart(totalF, totalD, totalR);
-                } else {
-                    UI.updateChart(chartData);
-                }
+            if (window.UI && UI.updateChart) {
+                UI.updateChart(totalF, totalD, totalR);
             }
         } else {
-            if (typeof UI !== 'undefined' && UI.renderList) {
-                UI.renderList(filteredData[this.currentTab], this.currentTab);
+            // Se estiver numa aba de listagem (Vendas, Custos ou Lucros), atualiza a lista
+            if (window.UI && UI.renderList) {
+                UI.renderList(filteredData[this.currentTab]);
             }
         }
     },
 
     /**
-     * Filtra um array de objetos pela data selecionada no estado
+     * Função auxiliar para atualizar valores nos cards
+     */
+    updateCardValue(id, val) {
+        if (window.UI && UI.animateValue) {
+            UI.animateValue(id, val);
+        } else {
+            const el = document.getElementById(id);
+            if (el) {
+                el.innerText = val.toLocaleString('pt-BR', { 
+                    style: 'currency', 
+                    currency: 'BRL' 
+                });
+            }
+        }
+    },
+
+    /**
+     * Filtra um array de objetos pela data selecionada.
+     * Trata o fuso horário para evitar erros de data.
      */
     filterByDate(dataArray) {
         return dataArray.filter(item => {
-            const d = new Date(item.data);
-            const matchesYear = d.getFullYear() === this.currentYear;
+            // "T12:00:00" garante que a data não retroceda um dia devido ao fuso horário
+            const d = new Date(item.data + 'T12:00:00');
+            const itemYear = d.getFullYear();
+            const itemMonth = d.getMonth();
+
+            const matchesYear = itemYear === this.currentYear;
             
-            // Lógica para o filtro "Todos"
+            // Se for 'todos', retorna todos os meses do ano
             if (this.currentMonth === 'todos' || this.currentMonth === -1) {
                 return matchesYear;
             }
             
-            return matchesYear && d.getMonth() === this.currentMonth;
+            // Caso contrário, compara o mês (convertendo para número para garantir)
+            return matchesYear && itemMonth === Number(this.currentMonth);
         });
     },
 
@@ -136,10 +146,12 @@ const App = {
 
     /**
      * Calcula o progresso do limite anual do MEI (R$ 81.000,00)
+     * Este cálculo é sempre ANUAL, independente do filtro de mês.
      */
     updateMeiStatus() {
         const faturamentosAno = this.state.faturamentos.filter(item => {
-            return new Date(item.data).getFullYear() === this.currentYear;
+            const d = new Date(item.data + 'T12:00:00');
+            return d.getFullYear() === this.currentYear;
         });
 
         const totalAno = this.sumValues(faturamentosAno);
@@ -162,40 +174,25 @@ const App = {
     },
 
     /**
-     * Gera os dados formatados para o Chart.js com 3 categorias
+     * Função chamada pela UI para atualizar os dados (Alias para refreshUI)
      */
-    getChartData(f, d, r) {
-        return {
-            labels: ['Vendas', 'Custos', 'Lucros'],
-            datasets: [{
-                data: [f, d, r],
-                backgroundColor: ['#00ff88', '#ef4444', '#a855f7'],
-                borderWidth: 0,
-                hoverOffset: 15
-            }]
-        };
-    },
-
-    /**
-     * Altera o mês de visualização (chamado pelo clique nos botões da UI)
-     */
-    setMonth(m) {
-        this.currentMonth = (m === 'todos') ? 'todos' : parseInt(m);
-        
-        if (typeof UI !== 'undefined' && UI.updateMonthSelector) {
-            UI.updateMonthSelector(this.currentMonth);
+    refreshData() {
+        // Sincroniza as variáveis locais com as variáveis globais da UI
+        if (window.UI) {
+            this.currentMonth = UI.activeMonth;
+            this.currentYear = UI.activeYear;
+            this.currentTab = UI.activeTab;
         }
         this.refreshUI();
     },
 
     /**
-     * Alias para compatibilidade com o ui.js (caso chame UI.selectMonth)
+     * Altera o mês de visualização (Chamado pelo ui.js)
      */
-    refreshData() {
-        if (typeof UI !== 'undefined') {
-            if (typeof UI.activeMonth !== 'undefined') this.currentMonth = UI.activeMonth;
-            if (typeof UI.activeYear !== 'undefined') this.currentYear = UI.activeYear;
-            if (typeof UI.activeTab !== 'undefined') this.currentTab = UI.activeTab;
+    setMonth(m) {
+        this.currentMonth = (m === 'todos') ? 'todos' : parseInt(m);
+        if (window.UI && UI.updateMonthSelector) {
+            UI.updateMonthSelector(this.currentMonth);
         }
         this.refreshUI();
     },
@@ -206,21 +203,15 @@ const App = {
     setYear(y) {
         this.currentYear = parseInt(y);
         this.refreshUI();
-    },
-
-    /**
-     * Fallback para atualizar valores monetários
-     */
-    updateElementCurrency(id, val) {
-        const el = document.getElementById(id);
-        if (el) {
-            el.innerText = val.toLocaleString('pt-BR', { 
-                style: 'currency', 
-                currency: 'BRL' 
-            });
-        }
     }
 };
 
-// Exporta para uso global
+// Exporta o objeto App para ser acessível globalmente pelos eventos do HTML/UI
 window.App = App;
+
+// Listener para inicialização via Firebase Auth (se não for inicializado externamente)
+firebase.auth().onAuthStateChanged(user => {
+    if (user) {
+        App.init(user.uid);
+    }
+});
