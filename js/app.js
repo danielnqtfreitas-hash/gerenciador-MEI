@@ -1,115 +1,139 @@
-// Configurações do Firebase extraídas do seu projeto original
-const firebaseConfig = {
-    apiKey: "AIzaSyC-Wf9_C6rXo-8m9Q8m9Q8m9Q8m9Q8m9Q", // Chave de API do seu projeto
-    authDomain: "vitrine-913c6.firebaseapp.com",
-    projectId: "vitrine-913c6",
-    storageBucket: "vitrine-913c6.firebasestorage.app",
-    messagingSenderId: "1088927815489",
-    appId: "1:1088927815489:web:61d745609fbf4c8b9e73c0"
-};
-
-// Inicializa o Firebase
-firebase.initializeApp(firebaseConfig);
+/**
+ * Núcleo da Aplicação - Vitrine Pro
+ * Gere o estado global, filtros, cálculos financeiros e integração com o Firestore.
+ */
 
 const App = {
     user: null,
-    state: { faturamentos: [], despesas: [], retiradas: [] },
-
-    init() {
-        // Escuta o estado da autenticação (Login/Logout)
-        firebase.auth().onAuthStateChanged(user => {
-            if (user) {
-                this.user = user;
-                this.startDataListeners();
-                // Mostra o app e esconde o login
-                document.getElementById('auth-screen').style.display = 'none';
-                document.getElementById('app-content').style.display = 'block';
-            } else {
-                this.user = null;
-                // Mostra o login e esconde o app
-                document.getElementById('auth-screen').style.display = 'flex';
-                document.getElementById('app-content').style.display = 'none';
-            }
-        });
-
-        // Configuração do Service Worker para o PWA funcionar offline
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('./sw.js')
-                .then(() => console.log("Service Worker registrado com sucesso!"))
-                .catch(err => console.log("Erro ao registrar SW:", err));
-        }
-
-        // Prepara o seletor de meses na interface
-        UI.renderMonthSelector();
+    userId: null,
+    // Estado local para evitar leituras excessivas ao banco de dados
+    state: {
+        faturamentos: [],
+        despesas: [],
+        retiradas: []
     },
 
-    // Inicia a escuta em tempo real do banco de dados para as 3 coleções
+    /**
+     * Inicializa a aplicação após a confirmação do login
+     * @param {string} uid - ID único do utilizador do Firebase
+     */
+    init(uid) {
+        this.userId = uid;
+        console.log("Sistema Elite inicializado para o utilizador:", uid);
+
+        // Inicia os escutas de dados em tempo real
+        this.startDataListeners();
+
+        // Configura a interface inicial
+        UI.renderMonthSelector();
+        UI.populateYearFilter();
+        
+        // Regista o Service Worker para suporte PWA (Offline)
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('./sw.js')
+                .catch(err => console.warn("Service Worker não registado:", err));
+        }
+    },
+
+    /**
+     * Estabelece conexão em tempo real com as coleções do Firestore
+     */
     startDataListeners() {
         const collections = ['faturamentos', 'despesas', 'retiradas'];
+        
         collections.forEach(col => {
-            Database.subscribe(col, this.user.uid, (docs) => {
+            Database.subscribe(col, this.userId, (docs) => {
                 this.state[col] = docs;
-                this.refreshUI(); // Sempre que o banco mudar, a tela atualiza sozinha
+                this.refreshUI();
             });
         });
     },
 
-    // A "Mágica" que calcula tudo e desenha na tela
+    /**
+     * Orquestra a atualização de todos os componentes visuais
+     */
     refreshUI() {
         const MEI_LIMIT = 81000;
         
-        // 1. Saldo Real (Histórico de toda a vida da conta)
-        const totalVendas = this.state.faturamentos.reduce((a, b) => a + (b.valor || 0), 0);
-        const totalGastos = this.state.despesas.reduce((a, b) => a + (b.valor || 0), 0);
-        const totalLucroDistribuido = this.state.retiradas.reduce((a, b) => a + (b.valor || 0), 0);
+        // 1. Cálculos de Totais Gerais (Saldo em Caixa)
+        const totalVendas = this.state.faturamentos.reduce((a, b) => a + (Number(b.valor) || 0), 0);
+        const totalGastos = this.state.despesas.reduce((a, b) => a + (Number(b.valor) || 0), 0);
+        const totalRetiradas = this.state.retiradas.reduce((a, b) => a + (Number(b.valor) || 0), 0);
         
-        const saldoCaixa = totalVendas - totalGastos - totalLucroDistribuido;
-        document.getElementById('saldo-disponivel').innerText = UI.formatBRL(saldoCaixa);
+        const saldoAtual = totalVendas - totalGastos - totalRetiradas;
+        UI.animateValue('saldo-disponivel', saldoAtual);
 
-        // 2. Filtro de Tempo (Baseado na seleção de Mês e Ano do usuário)
+        // 2. Aplicação de Filtros (Ano e Mês selecionados)
         const filterFn = (item) => {
-            const d = new Date(item.data + "T00:00:00");
-            const anoMatch = d.getFullYear() === UI.selectedYear;
-            const mesMatch = (UI.selectedMonth === null || d.getMonth() === UI.selectedMonth);
-            return anoMatch && mesMatch;
+            const date = new Date(item.data + "T00:00:00");
+            const matchYear = date.getFullYear() === UI.selectedYear;
+            const matchMonth = UI.selectedMonth === null || date.getMonth() === UI.selectedMonth;
+            return matchYear && matchMonth;
         };
 
         const fFiltered = this.state.faturamentos.filter(filterFn);
         const dFiltered = this.state.despesas.filter(filterFn);
         const rFiltered = this.state.retiradas.filter(filterFn);
 
-        const tF = fFiltered.reduce((a, b) => a + (b.valor || 0), 0);
-        const tD = dFiltered.reduce((a, b) => a + (b.valor || 0), 0);
-        const tR = rFiltered.reduce((a, b) => a + (b.valor || 0), 0);
+        // 3. Totais do Período Filtrado
+        const tF = fFiltered.reduce((a, b) => a + (Number(b.valor) || 0), 0);
+        const tD = dFiltered.reduce((a, b) => a + (Number(b.valor) || 0), 0);
+        const tR = rFiltered.reduce((a, b) => a + (Number(b.valor) || 0), 0);
 
-        // 3. Atualiza os cards de resumo do período selecionado
         document.getElementById('total-f').innerText = UI.formatBRL(tF);
         document.getElementById('total-d').innerText = UI.formatBRL(tD);
         document.getElementById('total-r').innerText = UI.formatBRL(tR);
 
-        // 4. Lógica do Monitor MEI (Considera faturamento BRUTO do ano selecionado)
+        // 4. Monitorização do Limite MEI (Sempre Anual)
         const fAnualMEI = this.state.faturamentos
             .filter(i => new Date(i.data + "T00:00:00").getFullYear() === UI.selectedYear)
-            .reduce((a, b) => a + (b.valor || 0), 0);
+            .reduce((a, b) => a + (Number(b.valor) || 0), 0);
         
-        const porcentagemMEI = Math.min((fAnualMEI / MEI_LIMIT) * 100, 100);
+        const percentagemMEI = Math.min((fAnualMEI / MEI_LIMIT) * 100, 100);
         document.getElementById('mei-total-val').innerText = UI.formatBRL(fAnualMEI);
-        document.getElementById('mei-percent').innerText = `${porcentagemMEI.toFixed(1)}% do limite`;
-        document.getElementById('mei-bar').style.width = `${porcentagemMEI}%`;
+        document.getElementById('mei-percent').innerText = `${percentagemMEI.toFixed(1)}%`;
+        document.getElementById('mei-bar').style.width = `${percentagemMEI}%`;
 
-        // 5. Atualiza o Gráfico e as Listas
+        // Cores de alerta para o limite MEI
+        if (percentagemMEI > 90) {
+            document.getElementById('mei-bar').style.background = 'linear-gradient(90deg, #ff4444, #cc0000)';
+        } else {
+            document.getElementById('mei-bar').style.background = 'linear-gradient(90deg, #00ff88, #00bd65)';
+        }
+
+        // 5. Atualização do Gráfico e Listagens
         UI.renderChart(tF, tD, tR);
         
         if (UI.activeTab !== 'resumo') {
-            const dataMap = {
+            const map = {
                 'faturamentos': fFiltered,
                 'despesas': dFiltered,
                 'retiradas': rFiltered
             };
-            UI.renderItemsList(dataMap[UI.activeTab]);
+            UI.renderItemsList(map[UI.activeTab]);
         }
     }
 };
 
-// Inicia a aplicação
-App.init();
+/**
+ * Extensão de utilitários da UI para animações
+ */
+UI.animateValue = function(id, value) {
+    const obj = document.getElementById(id);
+    const start = parseFloat(obj.innerText.replace(/[^\d,-]/g, '').replace(',', '.')) || 0;
+    const duration = 800;
+    let startTime = null;
+
+    function step(timestamp) {
+        if (!startTime) startTime = timestamp;
+        const progress = Math.min((timestamp - startTime) / duration, 1);
+        const current = progress * (value - start) + start;
+        obj.innerText = UI.formatBRL(current);
+        if (progress < 1) {
+            window.requestAnimationFrame(step);
+        }
+    }
+    window.requestAnimationFrame(step);
+};
+
+// Nota: O arranque do App.init() é feito dentro do Auth.js através do onAuthStateChanged.
